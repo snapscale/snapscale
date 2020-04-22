@@ -1,24 +1,32 @@
 
 # SNAPSCALE - The Most Powerful Infrastructure for Decentralized Applications
 
-[![Build status](https://badge.buildkite.com/370fe5c79410f7d695e4e34c500b4e86e3ac021c6b1f739e20.svg?branch=master)](https://buildkite.com/EOSIO/eosio)
+Snapscale is an EOSIO-based distributed ledger protocol with on-chain privacy.
 
-Welcome to the SNAPSCALE source code repository! This software enables businesses to rapidly build and deploy high-performance and high-security blockchain-based applications.
+This software enables businesses to rapidly build and deploy high-performance and high-security blockchain-based applications (DApp).
 
-Some of the groundbreaking features of SNAPSCALE include:
+Some of the groundbreaking features of EOSIO include:
 
-1. Free Rate Limited Transactions
 1. Low Latency Block confirmation (0.5 seconds)
-1. Low-overhead Byzantine Fault Tolerant Finality
-1. Designed for optional high-overhead, low-latency BFT finality
-1. Smart contract platform powered by WebAssembly
-1. Designed for Sparse Header Light Client Validation
-1. Scheduled Recurring Transactions
-1. Time Delay Security
-1. Hierarchical Role Based Permissions
-1. Support for Biometric Hardware Secured Keys (e.g. Apple Secure Enclave)
-1. Designed for Parallel Execution of Context Free Validation Logic
-1. Designed for Inter Blockchain Communication
+2. Low-overhead Byzantine Fault Tolerant Finality
+3. Designed for optional high-overhead, low-latency BFT finality
+4. Smart contract platform powered by WebAssembly
+5. Designed for Sparse Header Light Client Validation
+6. Scheduled Recurring Transactions
+7. Time Delay Security
+8. Hierarchical Role Based Permissions
+9.  Support for Biometric Hardware Secured Keys (e.g. Apple Secure Enclave)
+10. Designed for Parallel Execution of Context Free Validation Logic
+11. Designed for Inter Blockchain Communication
+
+Snapscale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in line with eos releases.
+
+Key enhancements over EOSIO:
+- Decentralized CA - use smart contracts to issue digital certificates, support issuance by multiple signing thresholds
+- Peer Permissioning - node/peer permissioning using smart contracts, ensuring only known parties can join the network
+- HTTP Permissioning - ensure that only authorized clients can interact with the node
+- On-chain Blacklists - use smart contracts to maintain blacklists to ensure that perpetrators can no longer use P2P or HTTP to interact with nodes
+
 
 ## Disclaimer
 
