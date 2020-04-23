@@ -1,9 +1,9 @@
 
-# SNAPSCALE - The Most Powerful Infrastructure for Decentralized Applications
+# SnapScale - The Most Powerful Infrastructure for MEC
 
-Snapscale is an EOSIO-based distributed ledger protocol with on-chain privacy.
+SnapScale is an EOSIO-based distributed ledger protocol with on-chain privacy.
 
-This software enables businesses to rapidly build and deploy high-performance and high-security blockchain-based applications (DApp).
+This software enables businesses to rapidly build and deploy high-performance and high-security blockchain-based applications on MEC.
 
 Some of the groundbreaking features of EOSIO include:
 
@@ -19,18 +19,19 @@ Some of the groundbreaking features of EOSIO include:
 10. Designed for Parallel Execution of Context Free Validation Logic
 11. Designed for Inter Blockchain Communication
 
-Snapscale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in line with eos releases.
+SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in line with EOS releases.
 
-Key enhancements over EOSIO:
-- Decentralized CA - use smart contracts to issue digital certificates, support issuance by multiple signing thresholds
-- Peer Permissioning - node/peer permissioning using smart contracts, ensuring only known parties can join the network
-- HTTP Permissioning - ensure that only authorized clients can interact with the node
-- On-chain Blacklists - use smart contracts to maintain blacklists to ensure that perpetrators can no longer use P2P or HTTP to interact with nodes
+**Key enhancements over EOSIO**:
+- **Decentralized CA** - use smart contracts to issue digital certificates, support issuance by multiple signing thresholds
+- **Peer Permissioning** - node/peer permissioning using smart contracts, ensuring only known parties can join the network
+- **HTTP Permissioning** - ensure that only authorized clients can interact with the node
+- **On-chain Blacklists** - use smart contracts to maintain blacklists to ensure that perpetrators can no longer use P2P or HTTP to interact with nodes
+- **UTXO** - Added UTXO trading model, and support the mutual transaction between the balance model and the UTXO model
 
 
 ## Disclaimer
 
-SNAPSCALE is neither launching nor operating any initial public blockchains based upon the SNAPSCALE software. This release refers only to version 1.0 of our open source software. We caution those who wish to use blockchains built on SNAPSCALE to carefully vet the companies and organizations launching blockchains based on SNAPSCALE before disclosing any private keys to their derivative software.
+SnapScale is neither launching nor operating any initial public blockchains based upon the SnapScale software. This release refers only to version 1.0 of our open source software. We caution those who wish to use blockchains built on SnapScale to carefully vet the companies and organizations launching blockchains based on SnapScale before disclosing any private keys to their derivative software.
 
 ## Official Testnet
 
@@ -38,7 +39,7 @@ SNAPSCALE is neither launching nor operating any initial public blockchains base
 
 ## Supported Operating Systems
 
-SNAPSCALE currently supports the following operating systems:  
+SnapScale currently supports the following operating systems:  
 
 1. Ubuntu 16.04
 2. Ubuntu 18.04
@@ -46,23 +47,23 @@ SNAPSCALE currently supports the following operating systems:
 
 ---
 
-**Note: It may be possible to install SNAPSCALE on other Unix-based operating systems. This is not officially supported, though.**
+**Note: It may be possible to install SnapScale on other Unix-based operating systems. This is not officially supported, though.**
 
 ---
 
 ## Building the source
 
 ```sh
-git clone https://github.com/xeniroio/snapscale
+git clone https://github.com/xeniroio/SnapScale
 
-cd snapscale
+cd SnapScale
 
 git submodule update --init --recursive
 
 ./scripts/eosio_build.sh
 ```
 
-**Note: If you used our scripts to build/install SNAPSCALE, please run the [Uninstall Script](#uninstall-script) before using our prebuilt binary packages.**
+**Note: If you used our scripts to build/install SnapScale, please run the [Uninstall Script](#uninstall-script) before using our prebuilt binary packages.**
 
 ## Software Installation
 
@@ -79,16 +80,16 @@ To uninstall the EOSIO built/installed binaries and dependencies, run:
 ```
 
 ## Documentation
-1. [Nodeos](https://github.com/snapscale/snapscale/tree/master/docs/01_nodeos)
-    - [Usage](https://github.com/snapscale/snapscale/tree/master/docs/01_nodeos/02_usage)
-    - [Replays](https://github.com/snapscale/snapscale/tree/master/docs/01_nodeos/04_replays)
+1. [Nodeos](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos)
+    - [Usage](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/02_usage)
+    - [Replays](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/04_replays)
     - [<font color='red'>Chain API Reference</font>](http://eosio.github.io/eos/latest/nodeos/plugins/chain_api_plugin/api-reference/index)
-    - [Troubleshooting](https://github.com/snapscale/snapscale/tree/master/docs/01_nodeos/08_troubleshooting)
-2. [Cleos](https://github.com/snapscale/snapscale/tree/master/docs/02_cleos)
-3. [Keosd](https://github.com/snapscale/snapscale/tree/master/docs/03_keosd)
+    - [Troubleshooting](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/08_troubleshooting)
+2. [Cleos](https://github.com/SnapScale/SnapScale/tree/master/docs/02_cleos)
+3. [Keosd](https://github.com/SnapScale/SnapScale/tree/master/docs/03_keosd)
 
 ## Resources
-1. [Website](https://snapscale.org/)
+1. [Website](https://SnapScale.org/)
 2. [White Paper]()
 
 ## Getting Started
@@ -96,7 +97,7 @@ Instructions detailing the process of getting the software, building it, running
 
 ## License
 
-SNAPSCALE is released under the open source [MIT](./LICENSE) license and is offered “AS IS” without warranty of any kind, express or implied. Any security provided by the SNAPSCALE software depends in part on how it is used, configured, and deployed. SNAPSCALE is built upon many third-party libraries such as WABT (Apache License) and WAVM (BSD 3-clause) which are also provided “AS IS” without warranty of any kind. Without limiting the generality of the foregoing, Block.one makes no representation or guarantee that SNAPSCALE or any third-party libraries will perform as intended or will be free of errors, bugs or faulty code. Both may fail in large or small ways that could completely or partially limit functionality or compromise computer systems. If you use or implement SNAPSCALE, you do so at your own risk. In no event will Block.one be liable to any party for any damages whatsoever, even if it had been advised of the possibility of damage.  
+SnapScale is released under the open source [MIT](./LICENSE) license and is offered “AS IS” without warranty of any kind, express or implied. Any security provided by the SnapScale software depends in part on how it is used, configured, and deployed. SnapScale is built upon many third-party libraries such as WABT (Apache License) and WAVM (BSD 3-clause) which are also provided “AS IS” without warranty of any kind. Without limiting the generality of the foregoing, Block.one makes no representation or guarantee that SnapScale or any third-party libraries will perform as intended or will be free of errors, bugs or faulty code. Both may fail in large or small ways that could completely or partially limit functionality or compromise computer systems. If you use or implement SnapScale, you do so at your own risk. In no event will Block.one be liable to any party for any damages whatsoever, even if it had been advised of the possibility of damage.  
 
 ## Important
 
