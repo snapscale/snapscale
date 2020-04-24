@@ -87,6 +87,7 @@ To uninstall the EOSIO built/installed binaries and dependencies, run:
     - [Troubleshooting](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/08_troubleshooting)
 2. [Cleos](https://github.com/SnapScale/SnapScale/tree/master/docs/02_cleos)
 3. [Keosd](https://github.com/SnapScale/SnapScale/tree/master/docs/03_keosd)
+4. [Consortium](https://github.com/SnapScale/SnapScale/tree/master/docs/how_to_consortium.md)
 
 ## Resources
 1. [Website](https://SnapScale.org/)
