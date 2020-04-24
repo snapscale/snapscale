@@ -1,0 +1,18 @@
+steps:
+  - id: git fetch
+    name: 'gcr.io/cloud-builders/git'
+    args: ['fetch', '--unshallow']
+  - id: git submodule
+    name: 'gcr.io/cloud-builders/git'
+    args: ['submodule', 'update', '--init', '--recursive']
+
+  - id: docker build
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'asia.gcr.io/$PROJECT_ID/snapscale:$_IMAGE_TAG', '-f', 'Docker/Dockerfile_snapscale', '.']
+
+  - id: docker push
+    name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'asia.gcr.io/$PROJECT_ID/snapscale:$_IMAGE_TAG']
+options:
+    machineType: 'N1_HIGHCPU_8'
+timeout: 7200s
