@@ -1,0 +1,229 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.1",
+    "types": [],
+    "structs": [
+        {
+            "name": "addcert",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                },
+                {
+                    "name": "cert",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "addcrl",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                }
+            ]
+        },
+        {
+            "name": "addmem",
+            "base": "",
+            "fields": [
+                {
+                    "name": "owner",
+                    "type": "string"
+                },
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                },
+                {
+                    "name": "meminfo",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "certinfo",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                },
+                {
+                    "name": "cert",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "changestatus",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                },
+                {
+                    "name": "status",
+                    "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "crl",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                }
+            ]
+        },
+        {
+            "name": "delallmem",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "delcrl",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                }
+            ]
+        },
+        {
+            "name": "delmem",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                }
+            ]
+        },
+        {
+            "name": "global_id",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "next_id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "member",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "owner",
+                    "type": "string"
+                },
+                {
+                    "name": "pk",
+                    "type": "public_key"
+                },
+                {
+                    "name": "status",
+                    "type": "uint8"
+                },
+                {
+                    "name": "meminfo",
+                    "type": "string"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "addcert",
+            "type": "addcert",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "addcrl",
+            "type": "addcrl",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "addmem",
+            "type": "addmem",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "changestatus",
+            "type": "changestatus",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "delallmem",
+            "type": "delallmem",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "delcrl",
+            "type": "delcrl",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "delmem",
+            "type": "delmem",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [
+        {
+            "name": "certs",
+            "type": "certinfo",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "crls",
+            "type": "crl",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "globalid",
+            "type": "global_id",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "members",
+            "type": "member",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
+    "ricardian_clauses": [],
+    "variants": []
+}

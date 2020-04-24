@@ -3368,6 +3368,22 @@ int main( int argc, char** argv ) {
       std::cout << fc::json::to_pretty_string(v) << std::endl;
    });
 
+
+    //sign digest subcommand
+    string applicant_pubkey;
+    string signer_privkey;
+    auto sign_digest = wallet->add_subcommand("sign_digest", localized("Sign a digest"), false);
+    sign_digest->add_option("pubkey", applicant_pubkey, localized("Public key to sign"), true)->required();
+    sign_digest->add_option("privkey", signer_privkey, localized("Signer's private key to sign"), true)->required();
+    sign_digest->set_callback([&] {
+        auto pub_key = public_key_type(applicant_pubkey);
+        auto priv_key = private_key_type(signer_privkey);
+        auto pub_key_digest = sha256::hash(pub_key);
+        auto sig = priv_key.sign(pub_key_digest);
+
+        std::cout << fc::json::to_pretty_string(sig) << std::endl;
+    });
+
    auto stopKeosd = wallet->add_subcommand("stop", localized("Stop ${k}.", ("k", key_store_executable_name)), false);
    stopKeosd->set_callback([] {
       const auto& v = call(wallet_url, keosd_stop);
@@ -3378,7 +3394,22 @@ int main( int argc, char** argv ) {
       }
    });
 
-   // sign subcommand
+//    //sign digest subcommand
+//    string applicant_pubkey;
+//    string signer_privkey;
+//    auto sign_digest = app.add_subcommand("sign_digest", localized("Sign a digest"), false);
+//    sign_digest->add_option("pubkey", applicant_pubkey, localized("Public key to sign"), true)->required();
+//    sign_digest->add_option("privkey", signer_privkey, localized("Signer's private key to sign"), true)->required();
+//    sign_digest->set_callback([&] {
+//        auto pub_key = public_key_type(applicant_pubkey);
+//        auto priv_key = private_key_type(signer_privkey);
+//        auto pub_key_digest = sha256::hash(pub_key);
+//        auto sig = priv_key.sign(pub_key_digest);
+//
+//        std::cout << fc::json::to_pretty_string(sig) << std::endl;
+//    });
+
+    // sign subcommand
    string trx_json_to_sign;
    string str_private_key;
    string str_chain_id;

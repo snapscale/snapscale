@@ -1,0 +1,117 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.1",
+    "types": [],
+    "structs": [
+        {
+            "name": "carauth",
+            "base": "",
+            "fields": [
+                {
+                    "name": "car",
+                    "type": "name"
+                },
+                {
+                    "name": "pile",
+                    "type": "name"
+                },
+                {
+                    "name": "quantity",
+                    "type": "asset"
+                }
+            ]
+        },
+        {
+            "name": "carauthmsg",
+            "base": "",
+            "fields": [
+                {
+                    "name": "car",
+                    "type": "name"
+                },
+                {
+                    "name": "pile",
+                    "type": "name"
+                },
+                {
+                    "name": "quantity",
+                    "type": "asset"
+                },
+                {
+                    "name": "comsume",
+                    "type": "asset"
+                }
+            ]
+        },
+        {
+            "name": "mgrclear",
+            "base": "",
+            "fields": []
+        },
+        {
+            "name": "pilepersub",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pile",
+                    "type": "name"
+                },
+                {
+                    "name": "car",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "settlement",
+            "base": "",
+            "fields": [
+                {
+                    "name": "pile",
+                    "type": "name"
+                },
+                {
+                    "name": "car",
+                    "type": "name"
+                },
+                {
+                    "name": "proxy",
+                    "type": "name"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "carauth",
+            "type": "carauth",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "mgrclear",
+            "type": "mgrclear",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "pilepersub",
+            "type": "pilepersub",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "settlement",
+            "type": "settlement",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [
+        {
+            "name": "carauthmsg",
+            "type": "carauthmsg",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
+    "ricardian_clauses": [],
+    "variants": []
+}

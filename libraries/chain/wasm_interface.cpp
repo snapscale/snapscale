@@ -909,6 +909,14 @@ class crypto_api : public context_aware_api {
       void ripemd160(array_ptr<char> data, uint32_t datalen, fc::ripemd160& hash_val) {
          hash_val = encode<fc::ripemd160::encoder>( data, datalen );
       }
+
+      int is_genesis_key(array_ptr<char> pubkey_data, uint32_t pubkey_len){
+         fc::crypto::public_key pubkey;
+         datastream<const char*> ds( pubkey_data, pubkey_len );
+         fc::raw::unpack(ds, pubkey);
+
+         return pubkey == context.control.get_genesis_key() ? 1 : 0;
+      }   
 };
 
 class permission_api : public context_aware_api {
@@ -1029,7 +1037,6 @@ class authorization_api : public context_aware_api {
    bool is_account( account_name account )const {
       return context.is_account( account );
    }
-
 };
 
 class system_api : public context_aware_api {
@@ -1934,6 +1941,7 @@ REGISTER_INTRINSICS(crypto_api,
    (sha256,                 void(int, int, int)           )
    (sha512,                 void(int, int, int)           )
    (ripemd160,              void(int, int, int)           )
+   (is_genesis_key,         int(int, int)           )
 );
 
 

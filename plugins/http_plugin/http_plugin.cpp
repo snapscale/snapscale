@@ -178,6 +178,7 @@ namespace eosio {
          string league_public_key_str;  ///
          string league_private_key_str; ///
          string signature_by_root_str;  ///
+         bool http_check_token = true;
 
          bool host_port_is_valid( const std::string& header_host_port, const string& endpoint_local_host_port ) {
             return !validate_host || header_host_port == endpoint_local_host_port || valid_hosts.find(header_host_port) != valid_hosts.end();
@@ -331,7 +332,7 @@ namespace eosio {
 
                //////////////////////////////////////////////
                //QTODO:判断是否在keos中
-               if(current_http_plugin_defaults.default_check_token)
+               if(current_http_plugin_defaults.default_check_token && http_check_token)
                {
                   using namespace fc;
                   using namespace fc::crypto;
@@ -576,6 +577,7 @@ namespace eosio {
              "Additionaly acceptable values for the \"Host\" header of incoming HTTP requests, can be specified multiple times.  Includes http/s_server_address by default.")
             ("http-threads", bpo::value<uint16_t>()->default_value( my->thread_pool_size ),
              "Number of worker threads in http thread pool")
+            ("http-check-token",  bpo::value<bool>()->default_value(true), "Enable Http check token")
             ;
    }
 
@@ -671,6 +673,10 @@ namespace eosio {
          if( options.count( "signature-by-root" ) ) {
             my->signature_by_root_str = options.at( "signature-by-root" ).as<string>();
          }
+         if( options.count( "http-check-token" ) ) {
+            my->http_check_token = options.at( "http-check-token" ).as<bool>();
+         }
+         
 
          //watch out for the returns above when adding new code here
       } FC_LOG_AND_RETHROW()

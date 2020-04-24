@@ -245,6 +245,7 @@ struct controller_impl {
    uint32_t                       snapshot_head_block = 0;
    named_thread_pool              thread_pool;
    platform_timer                 timer;
+   public_key_type                m_genesis_key;
 #if defined(EOSIO_EOS_VM_RUNTIME_ENABLED) || defined(EOSIO_EOS_VM_JIT_RUNTIME_ENABLED)
    vm::wasm_allocator                 wasm_alloc;
 #endif
@@ -252,6 +253,10 @@ struct controller_impl {
    typedef pair<scope_name,action_name>                   handler_key;
    map< account_name, map<handler_key, apply_handler> >   apply_handlers;
    unordered_map< builtin_protocol_feature_t, std::function<void(controller_impl&)>, enum_hash<builtin_protocol_feature_t> > protocol_feature_activation_handlers;
+
+   void set_genesis_key(const public_key_type &genesis_key) {
+      m_genesis_key = genesis_key; //my->conf.genesis.initial_key;
+   }
 
    void pop_block() {
       auto prev = fork_db.get_block( head->header.previous );
@@ -580,6 +585,7 @@ struct controller_impl {
          wlog( "No existing chain state or fork database. Initializing fresh blockchain state and resetting fork database.");
       }
       initialize_blockchain_state(genesis); // sets head to genesis state
+      set_genesis_key(genesis.initial_key);
 
       if( !fork_db.head() ) {
          fork_db.reset( *head );
@@ -3066,6 +3072,10 @@ bool controller::contracts_console()const {
 
 chain_id_type controller::get_chain_id()const {
    return my->chain_id;
+}
+
+public_key_type controller::get_genesis_key()const {
+   return my->m_genesis_key;
 }
 
 db_read_mode controller::get_read_mode()const {

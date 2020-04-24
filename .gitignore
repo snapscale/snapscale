@@ -19,6 +19,7 @@ CMakeFiles
 cmake_install.cmake
 cmake-build-debug/
 cmake-build-release/
+cmake-vsbuild-debug/
 Makefile
 compile_commands.json
 moc_*
@@ -87,3 +88,6 @@ var/lib/node_*
 .DS_Store
 
 !*.swagger.*
+*.bz2
+.favorites.json
+*.sh

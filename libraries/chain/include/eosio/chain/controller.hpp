@@ -282,6 +282,8 @@ namespace eosio { namespace chain {
 
          chain_id_type get_chain_id()const;
 
+         public_key_type get_genesis_key()const;
+
          db_read_mode get_read_mode()const;
          validation_mode get_validation_mode()const;
 
