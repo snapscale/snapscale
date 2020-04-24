@@ -221,6 +221,11 @@ namespace eosio {
       vector<chain::public_key_type>        allowed_peers; ///< peer keys allowed to connect
       std::map<chain::public_key_type,
                chain::private_key_type>     private_keys; ///< overlapping with producer keys, also authenticating non-producing nodes
+      chain::public_key_type           root_public_key; ///
+      chain::public_key_type           league_public_key;  ///
+      chain::private_key_type          league_private_key; ///
+      chain::signature_type            signature_by_root;   ///
+
       enum possible_connections : char {
          None = 0,
             Producers = 1 << 0,
@@ -291,6 +296,8 @@ namespace eosio {
       void on_pre_accepted_block( const signed_block_ptr& bs );
       void transaction_ack(const std::pair<fc::exception_ptr, transaction_metadata_ptr>&);
       void on_irreversible_block( const block_state_ptr& blk );
+      bool is_in_expiry(chain::public_key_type pub_key); //
+      void update_crl_list(); //get digital certificate from ca contract
 
       void start_conn_timer(boost::asio::steady_timer::duration du, std::weak_ptr<connection> from_connection);
       void start_expire_timer();
@@ -597,6 +604,7 @@ namespace eosio {
       string                      local_endpoint_port;
 
       connection_status get_status()const;
+      chain::public_key_type league_pub_key;
 
       /** \name Peer Timestamps
        *  Time message handling
@@ -2517,11 +2525,60 @@ namespace eosio {
          fc_wlog( logger, "Handshake message validation: token field invalid" );
          valid = false;
       }
+
+      try {
+         auto recovered = crypto::public_key(msg.sig_by_root, sha256::hash((char *) &(msg.public_key),sizeof(fc::ecc::public_key_data)), true);
+         if (recovered != my_impl->root_public_key ) {
+            wlog( "Handshake message validation: authentication rootkey invalid" );
+            wlog( "Handshake message recovered_key:  ${re} root_key: ${rt}", ("re", recovered)("rt", my_impl->root_public_key) );
+            //wlog( "hash ${h}, size ${s} ,pub ${p}",("h",(char *) &(msg.public_key))("s",sizeof(fc::ecc::public_key_data))("p",msg.public_key));
+            valid = false;
+         }
+      }
+      catch (fc::exception& /*e*/) {
+         wlog( "Handshake message validation: authentication rootkey exception" );
+         wlog( "Handshake message public_key: ${p} signature: ${s}", ("p", msg.public_key)("s", msg.sig_by_root) );
+         valid = false;
+      }
+
+      try {
+         auto rec_pub_key = crypto::public_key(msg.sig_by_pri, sha256::hash(msg.time), true);
+         if (rec_pub_key != msg.public_key ) {
+            wlog( "Handshake message validation: authentication  pubkey invalid" );
+            wlog( "Handshake message rec_pub_key:  ${re} public_key: ${rt}", ("re", rec_pub_key)("rt", msg.public_key) );
+            valid = false;
+         }
+      }
+      catch (fc::exception& /*e*/) {
+         wlog( "Handshake message validation: authentication pubkey exception" );
+         wlog( "Handshake message public_key: ${p} signature: ${s}", ("p", msg.public_key)("s", msg.sig_by_pri) );
+         valid = false;
+      }
+
       return valid;
    }
 
    void connection::handle_message( const chain_size_message& msg ) {
       peer_dlog(this, "received chain_size_message");
+   }
+   bool net_plugin_impl::is_in_expiry(chain::public_key_type pub_key){
+      bool isin = false;
+      isin = eosio::chain_apis::read_only::is_in_crl_list(pub_key);
+      if(isin) wlog( "Peer authentication expired in CRL list: ${k}",("k",pub_key));
+      return isin;
+   }
+
+
+   void net_plugin_impl::update_crl_list(){
+      try {
+         eosio::chain_apis::read_only plugin(my_impl->chain_plug->chain(), fc::microseconds::maximum());
+         plugin.read_only::get_update_crl_list();
+      }
+      catch (...){
+         wlog("updating crl list exception.");
+      }
+
+      return;
    }
 
    void connection::handle_message( const handshake_message& msg ) {
@@ -2536,6 +2593,15 @@ namespace eosio {
                ( "lib", msg.last_irreversible_block_num )( "head", msg.head_num ) );
 
       connecting = false;
+
+      if (my_impl->is_in_expiry(msg.public_key)) {
+         peer_elog( this, "Peer authentication expired.");
+         enqueue( go_away_message( auth_expired ));
+         wlog( "Peer authentication expired.(${k})",("k",msg.public_key));
+         return;
+      }
+      league_pub_key = msg.public_key;
+      ////////////////////////////////////////////
       if (msg.generation == 1) {
          if( msg.node_id == my_impl->node_id) {
             fc_elog( logger, "Self connection detected node_id ${id}. Closing connection", ("id", msg.node_id) );
@@ -2997,6 +3063,8 @@ namespace eosio {
    void net_plugin_impl::ticker() {
       if( in_shutdown ) return;
       std::lock_guard<std::mutex> g( keepalive_timer_mtx );
+      update_crl_list();
+
       keepalive_timer->expires_from_now(keepalive_interval);
       keepalive_timer->async_wait( [my = shared_from_this()]( boost::system::error_code ec ) {
             my->ticker();
@@ -3010,6 +3078,12 @@ namespace eosio {
                      c->send_time();
                   } );
                }
+
+               if(my_impl->is_in_expiry(c->league_pub_key)){
+                  c->enqueue( go_away_message( auth_expired ));
+                  wlog( "The key was detected to be expired: ${k}", ("k",c->league_pub_key));
+               }
+               
                return true;
             } );
          } );
@@ -3244,6 +3318,15 @@ namespace eosio {
 #endif
       hello.agent = my_impl->user_agent_name;
 
+      hello.public_key = my_impl->league_public_key;
+      hello.sig_by_root= my_impl->signature_by_root;
+      hello.sig_by_pri = my_impl->league_private_key.sign(fc::sha256::hash(hello.time));
+      //ilog( "hello root certificate: ${c}", ("c",hello.public_key));
+      //ilog( "hello signature by root key: ${c}", ("c",hello.sig_by_root));
+      //ilog( "hello self public key: ${c}", ("c",my_impl->league_public_key));
+      //ilog( "hello self private key: ${c}", ("c",my_impl->league_private_key));
+      //ilog( "hello signature by private key: ${c}", ("c",hello.sig_by_pri));
+      
       return true;
    }
 
@@ -3292,7 +3375,12 @@ namespace eosio {
            "   _port  \tremote port number of peer\n\n"
            "   _lip   \tlocal IP address connected to peer\n\n"
            "   _lport \tlocal port number connected to peer\n\n")
-        ;
+         ( "root-public-key",  bpo::value<string>(), "The public key of CA contract.")
+         ( "league-public-key",   bpo::value<string>(), "The public key that registration to CA.")
+         ( "league-private-key",   bpo::value<string>(), "The private key that registration to CA.")
+         ( "signature-by-root", bpo::value<string>(), "The signature generated by the CA.")
+
+         ;
    }
 
    template<typename T>
@@ -3376,6 +3464,34 @@ namespace eosio {
             }
          }
 
+         try {
+            if( options.count( "root-public-key" ) ) {
+               std::string tmp = options.at( "root-public-key" ).as<string>();
+               my->root_public_key = crypto::public_key(tmp);
+            }
+            if( options.count( "league-public-key" ) ) {
+               std::string tmp = options.at( "league-public-key" ).as<string>();
+               my->league_public_key = crypto::public_key(tmp);
+            }
+            if( options.count( "league-private-key" ) ) {
+               std::string tmp = options.at( "league-private-key" ).as<string>();
+               my->league_private_key = crypto::private_key(tmp);
+            }
+            if( options.count( "signature-by-root" ) ) {
+               std::string tmp = options.at( "signature-by-root" ).as<string>();
+               my->signature_by_root = crypto::signature(tmp);
+            }
+
+            //ilog( "my root certificate: ${c}", ("c",my->root_public_key));
+            //ilog( "my self public key: ${c}", ("c",my->league_public_key));
+            //ilog( "my self private key: ${c}", ("c",my->league_private_key));
+            //ilog( "my digital certificate : ${c}", ("c",my->signature_by_root));
+
+         }
+         catch ( fc::exception& ){
+            elog("Exception in parsing authorization information.");
+         }
+
          my->chain_plug = app().find_plugin<chain_plugin>();
          EOS_ASSERT( my->chain_plug, chain::missing_chain_plugin_exception, ""  );
          my->chain_id = my->chain_plug->get_chain_id();
@@ -3445,6 +3561,8 @@ namespace eosio {
             }
          }
       }
+
+      my->update_crl_list();
 
       if( my->acceptor ) {
          try {

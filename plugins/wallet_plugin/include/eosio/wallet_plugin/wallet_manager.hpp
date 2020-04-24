@@ -110,7 +110,7 @@ public:
    /// Wallet must be opened and unlocked.
    /// @param name the name of the wallet to remove the key from.
    /// @param password the plaintext password returned from ::create.
-   /// @param key the Public Key to remove, e.g. EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
+   /// @param key the Public Key to remove, e.g. XST6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
    /// @throws fc::exception if wallet not found or locked or key is not removed.
    void remove_key(const std::string& name, const std::string& password, const std::string& key);
 
@@ -121,7 +121,17 @@ public:
    /// @throws fc::exception if wallet not found or locked, or if the wallet cannot create said type of key
    /// @return The public key of the created key
    string create_key(const std::string& name, const std::string& key_type);
-
+   
+   /// Creates a token within the specified wallet.
+   /// Wallet must be opened and unlocked
+   /// @param name of the wallet to create key in
+   /// @param pubkey
+   /// @param signature
+   /// @param svr_pubkey
+   /// @throws fc::exception if wallet not found or locked
+   /// @return The string of the created token
+   //QTODO:
+   string create_token(const std::string& pubkey, const std::string& signature, const std::string& svr_pubkey);
    /// Takes ownership of a wallet to use
    void own_and_use_wallet(const string& name, std::unique_ptr<wallet_api>&& wallet);
 

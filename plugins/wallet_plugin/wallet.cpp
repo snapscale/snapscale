@@ -20,6 +20,8 @@
 #include <boost/range/adaptor/map.hpp>
 #include <boost/range/algorithm/copy.hpp>
 
+#include <fc/jwt/jwt.h>
+
 #ifndef WIN32
 # include <sys/types.h>
 # include <sys/stat.h>
@@ -311,6 +313,38 @@ string soft_wallet::create_key(string key_type)
    string ret = my->create_key(key_type);
    save_wallet_file();
    return ret;
+}
+
+//QTODO:soft wallet implementation 
+string soft_wallet::create_token( string pubkey, string signature, string svr_pubkey )
+{
+   EOS_ASSERT(!is_locked(), wallet_locked_exception, "Unable to create key on a locked wallet");
+   string token = "";
+   {
+      try {
+         auto sign = fc::crypto::signature(signature);
+         auto public_key  = fc::crypto::public_key(pubkey);
+         auto private_key = get_private_key(public_key);
+         auto srv_public_key  = fc::crypto::public_key(svr_pubkey);
+         auto shared_secret = private_key.generate_shared_secret(srv_public_key);
+         string jwt_token = "";
+         {
+            using namespace jwt;
+            jwt_token = create()
+               .set_issuer("xst")
+               .set_issued_at(std::chrono::system_clock::now())
+               .set_expires_at(std::chrono::system_clock::now() + std::chrono::seconds{3600})
+               .set_payload_claim("signature",jwt::claim(signature))
+               .set_payload_claim("public",jwt::claim(pubkey))
+               .sign(jwt::algorithm::hs256{shared_secret.str()});
+         }
+         token = string("Authorization:")+ jwt_token;
+      } catch (...) {
+         throw "Build Authorization Token Exception: Unknown.";
+      }
+   }
+   return token;
+
 }
 
 bool soft_wallet::load_wallet_file( string wallet_filename )

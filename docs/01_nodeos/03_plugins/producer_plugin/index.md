@@ -53,7 +53,7 @@ Config Options for eosio::producer_plugin:
                                         instead) Tuple of [public key, WIF 
                                         private key] (may specify multiple 
                                         times)
-  --signature-provider arg (=EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV=KEY:5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3)
+  --signature-provider arg (=XST6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV=KEY:5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3)
                                         Key=Value pairs in the form 
                                         <public-key>=<provider-spec>
                                         Where:

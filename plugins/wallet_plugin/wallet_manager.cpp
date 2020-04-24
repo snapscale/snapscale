@@ -224,6 +224,29 @@ string wallet_manager::create_key(const std::string& name, const std::string& ke
    return w->create_key(upper_key_type);
 }
 
+//QTODO:wallet manager api
+string wallet_manager::create_token(const std::string& pubkey, const std::string& signature, const std::string& svr_pubkey) {
+   check_timeout();
+   string token = "";
+   try{
+      for (const auto& w : wallets) {
+         if (!w.second->is_locked()) {
+            token = w.second->create_token(pubkey,signature,svr_pubkey);
+            if (boost::algorithm::starts_with(token, "Authorization:")) {
+               break;
+            }
+         }
+      }
+   }catch(...){
+      //do nothing
+      wlog("There is Exeption to create token: publik_key=${k}", ("k", pubkey));
+   }
+   if (!boost::algorithm::starts_with(token, "Authorization:")) {
+      token = "please check your wallet's status and the input parameters";
+   }
+   return token; 
+}
+
 chain::signed_transaction
 wallet_manager::sign_transaction(const chain::signed_transaction& txn, const flat_set<public_key_type>& keys, const chain::chain_id_type& id) {
    check_timeout();

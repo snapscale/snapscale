@@ -16,6 +16,14 @@
 #include <boost/container/flat_set.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 
+//#include <iostream>
+//#include <boost/thread/mutex.hpp>
+//#include <boost/thread/thread.hpp>
+#include <mutex>
+
+#include <fc/crypto/digest.hpp>
+#include <fc/crypto/private_key.hpp>
+
 #include <fc/static_variant.hpp>
 
 namespace fc { class variant; }
@@ -397,6 +405,34 @@ public:
       memcpy( data.data(), obj.value.data(), obj.value.size() );
    }
 
+   /////////////////////////////////////////
+   static std::mutex mtx;
+   struct crl_iterm {
+      chain::public_key_type public_key;
+      fc::sha256             node_id;
+   };
+   static std::map<chain::public_key_type, crl_iterm> crls;
+   void get_update_crl_list();
+
+   static bool is_in_crl_list(chain::public_key_type pub_key){
+      bool isin = false;
+      mtx.lock();
+      try{
+         if(!crls.empty()){
+            auto key_it = crls.find(pub_key);
+            if (key_it != crls.end() ){
+               isin = true;
+            }
+         }
+      } catch(...){
+         wlog("Exception in check public key for crl list.");
+      }
+      mtx.unlock();
+      //elog( "Peer authentication expired.(${k} in crl ${b})",("k",pub_key)("b",isin));
+      return isin;
+   }
+
+   /////////////////////////////////////////
    template<typename Function>
    void walk_key_value_table(const name& code, const name& scope, const name& table, Function f) const
    {

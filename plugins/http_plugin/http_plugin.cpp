@@ -28,6 +28,8 @@
 
 const fc::string logger_name("http_plugin");
 fc::logger logger;
+#include <fc/jwt/jwt.h>
+#include <eosio/chain_plugin/chain_plugin.hpp>
 
 namespace eosio {
 
@@ -40,7 +42,7 @@ namespace eosio {
    using std::set;
    using std::string;
    using std::regex;
-   using boost::optional;
+   //using boost::optional;
    using boost::asio::ip::tcp;
    using boost::asio::ip::address_v4;
    using boost::asio::ip::address_v6;
@@ -152,12 +154,12 @@ namespace eosio {
          websocket_server_type    server;
 
          uint16_t                                    thread_pool_size = 2;
-         optional<eosio::chain::named_thread_pool>   thread_pool;
+         boost::optional<eosio::chain::named_thread_pool>   thread_pool;
          std::atomic<size_t>                         bytes_in_flight{0};
          size_t                                      max_bytes_in_flight = 0;
          fc::microseconds                            max_response_time{30*1000};
 
-         optional<tcp::endpoint>  https_listen_endpoint;
+         boost::optional<tcp::endpoint>  https_listen_endpoint;
          string                   https_cert_chain;
          string                   https_key;
          https_ecdh_curve_t       https_ecdh_curve = SECP384R1;
@@ -171,6 +173,11 @@ namespace eosio {
 
          bool                     validate_host;
          set<string>              valid_hosts;
+
+         string root_public_key_str;    ///
+         string league_public_key_str;  ///
+         string league_private_key_str; ///
+         string signature_by_root_str;  ///
 
          bool host_port_is_valid( const std::string& header_host_port, const string& endpoint_local_host_port ) {
             return !validate_host || header_host_port == endpoint_local_host_port || valid_hosts.find(header_host_port) != valid_hosts.end();
@@ -322,6 +329,72 @@ namespace eosio {
 
                if( !verify_max_bytes_in_flight( con ) ) return;
 
+               //////////////////////////////////////////////
+               //QTODO:判断是否在keos中
+               if(current_http_plugin_defaults.default_check_token)
+               {
+                  using namespace fc;
+                  using namespace fc::crypto;
+
+                  std::string token = con->get_request_header("Authorization");
+                  const auto deadline = fc::time_point::now() + fc::exception::format_time_limit;
+                  try{
+                     using namespace jwt;
+                     using eosio::chain_apis::read_only;
+                     auto decoded = jwt::decode(token);
+                     auto cli_public_str = decoded.get_payload_claim("public").as_string();
+                     auto cli_signature_str = decoded.get_payload_claim("signature").as_string();
+                     //std::cout << "Decoded: " << decoded.get_payload()   << std::endl;         
+
+                     auto cli_public = crypto::public_key(cli_public_str);
+                     auto cli_signature = crypto::signature(cli_signature_str);
+                     auto recovered = crypto::public_key(cli_signature, sha256::hash((char *) &(cli_public),sizeof(fc::ecc::public_key_data)), true);
+                     if (recovered != crypto::public_key(root_public_key_str) ) {
+                        FC_THROW_EXCEPTION( fc::exception, "expected: digital signature invalid" );
+                     }
+
+                     if(eosio::chain_apis::read_only::is_in_crl_list(cli_public)){
+                        FC_THROW_EXCEPTION( fc::exception, "expected: digital signature expired in CRL list" );
+                     }
+
+                     auto srv_private_key = crypto::private_key(league_private_key_str);
+                     auto shared_secret = srv_private_key.generate_shared_secret(cli_public);
+                     auto verifier = jwt::verify()
+                        .allow_algorithm(jwt::algorithm::hs256{ shared_secret.str() })
+                        .with_issuer("xst");
+
+                     verifier.verify(decoded);
+                     wlog( "Authorization Token Verify OK: ${k}",("k",cli_public_str));
+                     
+                  } catch(const fc::exception& e) {
+                     elog("Authorization Token Exception FC Exception:\r\n${e}", ("e",e.to_string()));
+                     error_results results{websocketpp::http::status_code::authentication_expectation, 
+                        "Authorization Token FC Exception", 
+                        error_results::error_info(e,verbose_http_errors)};
+                     con->set_body( fc::json::to_string( results, deadline ));
+                     con->set_status( websocketpp::http::status_code::authentication_expectation );
+                     return;
+
+                  } 
+                  catch(const jwt::token_verification_exception& e) {
+                     elog("Authorization Token Exception JWT Exception:\r\n${e}", ("e",e.what()));
+                     error_results results{websocketpp::http::status_code::authentication_expectation, 
+                        "Authorization Token JWT Exception", 
+                        error_results::error_info()};
+                     con->set_body( fc::json::to_string( results, deadline ));
+                     con->set_status( websocketpp::http::status_code::authentication_expectation );
+                     return;
+                  } catch(...) {
+                     elog( "Authorization Token Unknown Exception" );
+                     error_results results{websocketpp::http::status_code::authentication_expectation, 
+                        "Authorization Token Unknown Exception", 
+                        error_results::error_info()};
+                     con->set_body( fc::json::to_string( results, deadline ));
+                     con->set_status( websocketpp::http::status_code::authentication_expectation );
+                     return;
+                  }
+               }
+               //////////////////////////////////////////////
                std::string body = con->get_request_body();
                std::string resource = con->get_uri()->get_resource();
                auto handler_itr = url_handlers.find( resource );
@@ -585,6 +658,19 @@ namespace eosio {
 
          my->max_bytes_in_flight = options.at( "http-max-bytes-in-flight-mb" ).as<uint32_t>() * 1024 * 1024;
          my->max_response_time = fc::microseconds( options.at("http-max-response-time-ms").as<uint32_t>() * 1000 );
+
+         if( options.count( "root-public-key" ) ) {
+            my->root_public_key_str = options.at( "root-public-key" ).as<string>();
+         }
+         if( options.count( "league-public-key" ) ) {
+            my->league_public_key_str = options.at( "league-public-key" ).as<string>();
+         }
+         if( options.count( "league-private-key" ) ) {
+            my->league_private_key_str = options.at( "league-private-key" ).as<string>();
+         }
+         if( options.count( "signature-by-root" ) ) {
+            my->signature_by_root_str = options.at( "signature-by-root" ).as<string>();
+         }
 
          //watch out for the returns above when adding new code here
       } FC_LOG_AND_RETHROW()

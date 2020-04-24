@@ -40,6 +40,9 @@ namespace eosio {
       string                     os;
       string                     agent;
       int16_t                    generation = 0;
+      chain::public_key_type     public_key; ///
+      chain::signature_type      sig_by_root;///
+      chain::signature_type      sig_by_pri; ///
    };
 
 
@@ -55,7 +58,8 @@ namespace eosio {
     validation, ///< the peer sent a block that failed validation
     benign_other, ///< reasons such as a timeout. not fatal but warrant resetting
     fatal_other, ///< a catch-all for errors we don't have discriminated
-    authentication ///< peer failed authenicatio
+    authentication, ///< peer failed authenicatio
+    auth_expired ///< peer authenication expired
   };
 
   constexpr auto reason_str( go_away_reason rsn ) {
@@ -70,6 +74,7 @@ namespace eosio {
     case bad_transaction : return "bad transaction";
     case validation : return "invalid block";
     case authentication : return "authentication failure";
+    case auth_expired : return "authenication expired";
     case fatal_other : return "some other failure";
     case benign_other : return "some other non-fatal condition, possibly unknown block";
     default : return "some crazy reason";
@@ -156,7 +161,7 @@ FC_REFLECT( eosio::handshake_message,
             (time)(token)(sig)(p2p_address)
             (last_irreversible_block_num)(last_irreversible_block_id)
             (head_num)(head_id)
-            (os)(agent)(generation) )
+            (os)(agent)(generation)(public_key)(sig_by_root)(sig_by_pri) )
 FC_REFLECT( eosio::go_away_message, (reason)(node_id) )
 FC_REFLECT( eosio::time_message, (org)(rec)(xmt)(dst) )
 FC_REFLECT( eosio::notice_message, (known_trx)(known_blocks) )

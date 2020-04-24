@@ -161,7 +161,7 @@ class soft_wallet final : public wallet_api
 
       /** Removes a key from the wallet.
        *
-       * example: remove_key EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
+       * example: remove_key XST6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
        *
        * @param key the Public Key to remove
        */
@@ -175,6 +175,8 @@ class soft_wallet final : public wallet_api
        */
       string create_key( string key_type ) override;
 
+      //QTODO:
+      string create_token( string pubkey, string signature, string svr_pubkey ) override;
       /* Attempts to sign a digest via the given public_key
       */
       fc::optional<signature_type> try_sign_digest( const digest_type digest, const public_key_type public_key ) override;

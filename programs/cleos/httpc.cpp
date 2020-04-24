@@ -25,6 +25,8 @@
 #include <boost/asio/ssl/rfc2818_verification.hpp>
 #include "httpc.hpp"
 
+#include <fc/jwt/jwt.h>
+
 using boost::asio::ip::tcp;
 using namespace eosio::chain;
 namespace eosio { namespace client { namespace http {

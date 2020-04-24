@@ -118,6 +118,8 @@ namespace eosio { namespace client { namespace http {
    const string wallet_open = wallet_func_base + "/open";
    const string wallet_list = wallet_func_base + "/list_wallets";
    const string wallet_list_keys = wallet_func_base + "/list_keys";
+   //QTODO:add wallet_create_token
+   const string wallet_create_token = wallet_func_base + "/create_token";
    const string wallet_public_keys = wallet_func_base + "/get_public_keys";
    const string wallet_lock = wallet_func_base + "/lock";
    const string wallet_lock_all = wallet_func_base + "/lock_all";

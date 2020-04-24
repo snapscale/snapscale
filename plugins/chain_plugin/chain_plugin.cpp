@@ -2534,7 +2534,38 @@ read_only::get_required_keys_result read_only::get_required_keys( const get_requ
 read_only::get_transaction_id_result read_only::get_transaction_id( const read_only::get_transaction_id_params& params)const {
    return params.id();
 }
-
+//////////////////////////////////////////////
+std::map<chain::public_key_type, read_only::crl_iterm> read_only::crls;
+std::mutex read_only::mtx;
+void read_only::get_update_crl_list() {
+   mtx.lock();
+   try {
+      read_only::get_table_rows_params p;
+      p.code = N(xst.ca);
+      p.scope = "xst.ca";
+      p.table = N(crls);
+      p.limit = 100;
+      p.json = true;
+      p.index_position = "primary";
+      read_only::get_table_rows_result result = read_only::get_table_rows(p);
+      //ilog( "Update table rows size: ${s}, ${m}",("s",result.rows.size())("m",result.more));
+      crls.clear();
+      {
+         using namespace fc;
+         using namespace fc::crypto;
+         for ( auto& row : result.rows ){
+            chain::public_key_type pubkey = crypto::public_key(row["pk"].as_string());
+            crl_iterm iterm = {.public_key=pubkey};
+            crls[pubkey] = iterm;
+         }
+      }
+   } catch (...){
+      wlog("Exception in updating crl list from database.");
+   }
+   mtx.unlock();
+   return;
+}
+//////////////////////////////////////////////
 namespace detail {
    struct ram_market_exchange_state_t {
       asset  ignore1;

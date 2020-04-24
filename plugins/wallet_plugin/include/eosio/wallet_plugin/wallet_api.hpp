@@ -81,7 +81,7 @@ class wallet_api
 
       /** Removes a key from the wallet.
        *
-       * example: remove_key EOS6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
+       * example: remove_key XST6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5GDW5CV
        *
        * @param key the Public Key to remove
        */
@@ -94,6 +94,13 @@ class wallet_api
        * @param key_type the key type to create. May be empty to allow wallet to pick appropriate/"best" key type
        */
       virtual string create_key( string key_type ) = 0;
+
+       /** Creates a token within the wallet to be used to sign transactions by an account.
+       */
+      //QTODO:
+      virtual string create_token( string pubkey, string signature, string svr_pubkey ){
+         return "";
+      };
 
       /** Returns a signature given the digest and public_key, if this wallet can sign via that public key
        */

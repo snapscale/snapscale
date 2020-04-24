@@ -44,6 +44,9 @@ namespace eosio {
       //If non 0, HTTP will be enabled by default on the given port number. If
       // 0, HTTP will not be enabled by default
       uint16_t default_http_port{0};
+
+      //QTODO:http defaults check_token
+      bool default_check_token{true};
    };
 
    /**

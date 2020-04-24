@@ -3350,6 +3350,24 @@ int main( int argc, char** argv ) {
       std::cout << fc::json::to_pretty_string(v) << std::endl;
    });
 
+   // Create token
+   //QTODO:1. cleos sub command
+   string wallet_create_token_pubkey;
+   string wallet_create_token_signature;
+   string wallet_create_token_svr_pubkey;
+   auto createToken = wallet->add_subcommand("create_token", localized("Create a token"), false);
+   createToken->add_option("--pubkey", wallet_create_token_pubkey, localized("The public key of the HTTP request sender"));
+   createToken->add_option("--signature", wallet_create_token_signature, localized("The signing certificate of the HTTP request sender"));
+   createToken->add_option("--svr-pubkey", wallet_create_token_svr_pubkey, localized("The http request will send the server's public key"));
+   createToken->set_callback([&wallet_create_token_pubkey, &wallet_create_token_signature, &wallet_create_token_svr_pubkey] {
+      fc::variants vs = { 
+         fc::variant(wallet_create_token_pubkey), 
+         fc::variant(wallet_create_token_signature), 
+         fc::variant(wallet_create_token_svr_pubkey)};
+      const auto& v = call(wallet_url, wallet_create_token, vs);
+      std::cout << fc::json::to_pretty_string(v) << std::endl;
+   });
+
    auto stopKeosd = wallet->add_subcommand("stop", localized("Stop ${k}.", ("k", key_store_executable_name)), false);
    stopKeosd->set_callback([] {
       const auto& v = call(wallet_url, keosd_stop);
