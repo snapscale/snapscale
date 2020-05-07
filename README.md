@@ -1,23 +1,10 @@
+Edge computing has become a very important aspect of most IoT Solutions. As these IoT devices gain more intelligence and become more autonomous, creating a decentralized IoT network becomes crucial for maintaining trust and unleash the potential of edge technology. The goal of SnapScale is to leverage blockchain to make edge computing more robust and create a protocol for a decentralized IoT network at the network edge.
 
-# SnapScale - The Most Powerful Infrastructure for MEC
+# SnapScale – Deploying Decentralized Applications through MEC
 
-SnapScale is an EOSIO-based distributed ledger protocol with on-chain privacy.
+SnapScale is a distributed ledger protocol for Multi-access Edge Computing (MEC).
 
 This software enables businesses to rapidly build and deploy high-performance and high-security blockchain-based applications on MEC.
-
-Some of the groundbreaking features of EOSIO include:
-
-1. Low Latency Block confirmation (0.5 seconds)
-2. Low-overhead Byzantine Fault Tolerant Finality
-3. Designed for optional high-overhead, low-latency BFT finality
-4. Smart contract platform powered by WebAssembly
-5. Designed for Sparse Header Light Client Validation
-6. Scheduled Recurring Transactions
-7. Time Delay Security
-8. Hierarchical Role Based Permissions
-9.  Support for Biometric Hardware Secured Keys (e.g. Apple Secure Enclave)
-10. Designed for Parallel Execution of Context Free Validation Logic
-11. Designed for Inter Blockchain Communication
 
 SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in line with EOS releases.
 
@@ -25,8 +12,8 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 - **Decentralized CA** - use smart contracts to issue digital certificates, support issuance by multiple signing thresholds
 - **Peer Permissioning** - node/peer permissioning using smart contracts, ensuring only known parties can join the network
 - **HTTP Permissioning** - ensure that only authorized clients can interact with the node
-- **On-chain Blacklists** - use smart contracts to maintain blacklists to ensure that perpetrators can no longer use P2P or HTTP to interact with nodes
-- **UTXO** - Added UTXO trading model, and support the mutual transaction between the balance model and the UTXO model
+- **On-chain Blacklists** - use smart contracts to maintain blacklists and ensure that perpetrators can no longer use P2P or HTTP to interact with nodes
+- **UTXO** - add UTXO-transaction model, supporting cross-transactions between the balance model and the UTXO model
 
 
 ## Disclaimer
@@ -35,7 +22,7 @@ SnapScale is neither launching nor operating any initial public blockchains base
 
 ## Official Testnet
 
-[<font color='red'>testnet.snapscal.io</font>](https://testnet.eos.io/)
+[<font color='red'>testnet.snapscale.io</font>](https://testnet.snapscale.io/)
 
 ## Supported Operating Systems
 
@@ -98,7 +85,7 @@ Instructions detailing the process of getting the software, building it, running
 
 ## License
 
-SnapScale is released under the open source [MIT](./LICENSE) license and is offered “AS IS” without warranty of any kind, express or implied. Any security provided by the SnapScale software depends in part on how it is used, configured, and deployed. SnapScale is built upon many third-party libraries such as WABT (Apache License) and WAVM (BSD 3-clause) which are also provided “AS IS” without warranty of any kind. Without limiting the generality of the foregoing, Block.one makes no representation or guarantee that SnapScale or any third-party libraries will perform as intended or will be free of errors, bugs or faulty code. Both may fail in large or small ways that could completely or partially limit functionality or compromise computer systems. If you use or implement SnapScale, you do so at your own risk. In no event will Block.one be liable to any party for any damages whatsoever, even if it had been advised of the possibility of damage.  
+SnapScale is released under the Apache 2.0 license and is offered “AS IS” without warranty of any kind, express or implied. Any security provided by the SnapScale software depends in part on how it is used, configured, and deployed. SnapScale is built upon many third-party libraries such as WABT (Apache License) and WAVM (BSD 3-clause) which are also provided “AS IS” without warranty of any kind.  
 
 ## Important
 
