@@ -27,11 +27,11 @@ SnapScale is neither launching nor operating any initial public blockchains base
 
 ## Official Testnet
 
-1.[Foundation website](https://snapscale.org/)
-2.[Whitepaper](xxx)
-3.[Discord](https://discord.gg/wKkjUnQ/)
-4.[License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
-5.[Contributing](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
+1. [Foundation website](https://snapscale.org/)
+2. [Whitepaper](xxx)
+3. [Discord](https://discord.gg/wKkjUnQ/)
+4. [License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
+5. [Contributing](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
 
 ## Supported Operating Systems
 
