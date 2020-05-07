@@ -20,9 +20,18 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 
 SnapScale is neither launching nor operating any initial public blockchains based upon the SnapScale software. This release refers only to version 1.0 of our open source software. We caution those who wish to use blockchains built on SnapScale to carefully vet the companies and organizations launching blockchains based on SnapScale before disclosing any private keys to their derivative software.
 
-## Official Testnet
+## Useful Links
 
 [<font color='red'>testnet.snapscale.io</font>](https://testnet.snapscale.io/)
+
+
+## Official Testnet
+
+1.[Foundation website](https://snapscale.org/)
+2.[Whitepaper](xxx)
+3.[Discord](https://discord.gg/wKkjUnQ/)
+4.[License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
+5.[Contributing](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
 
 ## Supported Operating Systems
 
