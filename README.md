@@ -1,3 +1,5 @@
+<center> ![snapscale](https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png)</center>
+
 Edge computing has become a very important aspect of most IoT Solutions. As these IoT devices gain more intelligence and become more autonomous, creating a decentralized IoT network becomes crucial to maintain trust and unleash the potential of edge technology. The goal of SnapScale is to leverage blockchain to make edge computing more robust and create a protocol for a decentralized IoT network at the network edge.
 
 # SnapScale – Deploying Decentralized Applications through MEC
@@ -34,7 +36,7 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 3. [Keosd](https://github.com/SnapScale/SnapScale/tree/master/docs/03_keosd)
 4. [Consortium Walkthrough](https://github.com/snapscale/snapscale/blob/master/docs/consortium_walkthrough.md)
 
-See other dependancies:
+See other dependencies:
 
 5. [SnapScale Explorer](https://github.com/snapscale/snapscale.explorer/blob/2.0.0/README.md)
 6. [Run on Docker](https://github.com/snapscale/snapscale/tree/master/docker/README.md)
