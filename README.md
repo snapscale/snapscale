@@ -15,6 +15,30 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 - **On-chain Blacklists** - use smart contracts to maintain blacklists and ensure that perpetrators can no longer use P2P or HTTP to interact with nodes
 - **UTXO** - add UTXO-transaction model, supporting cross-transactions between the balance model and the UTXO model
 
+## Resources
+
+1. [Website](https://snapscale.org/)
+2. [Whitepaper](xxx)
+3. [Discord](https://discord.gg/wKkjUnQ/)
+4. [License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
+5. [Contributing](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
+
+## Documentation
+
+1. [Nodeos](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos)
+    - [Usage](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/02_usage)
+    - [Replays](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/04_replays)
+    - [<font color='red'>Chain API Reference</font>](http://eosio.github.io/eos/latest/nodeos/plugins/chain_api_plugin/api-reference/index)
+    - [Troubleshooting](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/08_troubleshooting)
+2. [Cleos](https://github.com/SnapScale/SnapScale/tree/master/docs/02_cleos)
+3. [Keosd](https://github.com/SnapScale/SnapScale/tree/master/docs/03_keosd)
+4. [Consortium Walkthrough](https://github.com/snapscale/snapscale/blob/master/docs/consortium_walkthrough.md)
+
+See other dependancies:
+5. [SnapScale Explorer](https://github.com/snapscale/snapscale.explorer/blob/2.0.0/README.md)
+6. [Run on Docker](https://github.com/snapscale/snapscale/tree/master/docker/README.md)
+7. [Contracts](https://github.com/snapscale/snapscale.contracts/README.md)
+8. [Contracts Development Tools](https://github.com/snapscale/snapscale.cdt/blob/master/README.md) 
 
 ## Disclaimer
 
@@ -23,15 +47,6 @@ SnapScale is neither launching nor operating any initial public blockchains base
 ## Useful Links
 
 [<font color='red'>testnet.snapscale.io</font>](https://testnet.snapscale.io/)
-
-
-## Official Testnet
-
-1. [Foundation website](https://snapscale.org/)
-2. [Whitepaper](xxx)
-3. [Discord](https://discord.gg/wKkjUnQ/)
-4. [License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
-5. [Contributing](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
 
 ## Supported Operating Systems
 
@@ -74,20 +89,6 @@ To uninstall the EOSIO built/installed binaries and dependencies, run:
 ```sh
 ./scripts/eosio_uninstall.sh
 ```
-
-## Documentation
-1. [Nodeos](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos)
-    - [Usage](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/02_usage)
-    - [Replays](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/04_replays)
-    - [<font color='red'>Chain API Reference</font>](http://eosio.github.io/eos/latest/nodeos/plugins/chain_api_plugin/api-reference/index)
-    - [Troubleshooting](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/08_troubleshooting)
-2. [Cleos](https://github.com/SnapScale/SnapScale/tree/master/docs/02_cleos)
-3. [Keosd](https://github.com/SnapScale/SnapScale/tree/master/docs/03_keosd)
-4. [Consortium](https://github.com/SnapScale/SnapScale/tree/master/docs/how_to_consortium.md)
-
-## Resources
-1. [Website](https://SnapScale.org/)
-2. [White Paper]()
 
 ## Getting Started
 Instructions detailing the process of getting the software, building it, running a simple test network that produces blocks, account creation and uploading a sample contract to the blockchain can be found in the [Getting Started](https://developers.eos.io/welcome/latest/getting-started) walkthrough.
