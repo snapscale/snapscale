@@ -21,10 +21,10 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 ## Resources
 
 1. [Website](https://snapscale.org/)
-2. [Whitepaper](xxx)
+2. [Whitepaper](https://github.com/snapscale/snapscale/blob/master/SnapScale%20Technical%20Whitepaper%20-%20EN.pdf)
 3. [Discord](https://discord.gg/wKkjUnQ/)
 4. [License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
-5. [Contributing](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
+5. [Contribution](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
 
 ## Documentation
 
