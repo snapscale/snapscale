@@ -35,6 +35,7 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 4. [Consortium Walkthrough](https://github.com/snapscale/snapscale/blob/master/docs/consortium_walkthrough.md)
 
 See other dependancies:
+
 5. [SnapScale Explorer](https://github.com/snapscale/snapscale.explorer/blob/2.0.0/README.md)
 6. [Run on Docker](https://github.com/snapscale/snapscale/tree/master/docker/README.md)
 7. [Contracts](https://github.com/snapscale/snapscale.contracts/README.md)
