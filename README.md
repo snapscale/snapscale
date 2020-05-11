@@ -1,7 +1,7 @@
 <div align=center><img height="150" src="https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png"/></div>
 <br>
 <br>
-<a href="#chinese">（点击此处直达中文版） </a>
+<a href="#chinese">点击此处直达中文版 </a>
 <br>
 <br>
 <br>
