@@ -1,6 +1,9 @@
 <div align=center><img height="150" src="https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png"/></div>
 <br>
 <br>
+<a href="#chinese">Chinese </a>
+
+
 Edge computing has become a very important aspect of most IoT Solutions. As these IoT devices gain more intelligence and become more autonomous, creating a decentralized IoT network becomes crucial to maintain trust and unleash the potential of edge technology. The goal of SnapScale is to leverage blockchain to make edge computing more robust and create a protocol for a decentralized IoT network at the network edge.
 
 # SnapScale – Deploying Decentralized Applications through MEC
@@ -106,3 +109,6 @@ SnapScale is released under the Apache 2.0 license and is offered “AS IS” wi
 See [LICENSE](./LICENSE) for copyright and license terms.
 
 All repositories and other materials are provided subject to the terms of this [IMPORTANT](./IMPORTANT.md) notice and you must familiarize yourself with its terms.  The notice contains important information, limitations and restrictions relating to our software, publications, trademarks, third-party resources, and forward-looking statements.  By accessing any of our repositories and other materials, you accept and agree to the terms of the notice.
+
+
+<a id="chinese">Chinese</a>
