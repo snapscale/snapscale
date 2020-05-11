@@ -1,12 +1,11 @@
 <div align=center><img height="150" src="https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png"/></div>
 <br>
 <br>
-
-<a href="#english">2. English version </a>
+<a href="#english">1. English version </a><br>
 <a href="#chinese">2. Chinese version (中文) </a>
 <br>
 <br>
-<a id="english">English</a>
+<a id="english"></a> **English**
 <br>
 Edge computing has become a very important aspect of most IoT Solutions. As these IoT devices gain more intelligence and become more autonomous, creating a decentralized IoT network becomes crucial to maintain trust and unleash the potential of edge technology. The goal of SnapScale is to leverage blockchain to make edge computing more robust and create a protocol for a decentralized IoT network at the network edge.
 
