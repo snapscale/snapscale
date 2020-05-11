@@ -80,7 +80,7 @@ git submodule update --init --recursive
 
 **Note: If you used our scripts to build/install SnapScale, please run the [Uninstall Script](#uninstall-script) before using our prebuilt binary packages.**
 
-## Software Installation
+## Software Installation 
 
 ```sh
 ./scripts/eosio_install.sh
