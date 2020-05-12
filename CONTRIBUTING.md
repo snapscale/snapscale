@@ -1,9 +1,8 @@
-<br>
-<br>
+
 <a href="#chinese">点击此处直达中文版 </a>
-<br>
-<br>
-# Contributing
+
+
+## Contributing
 
 Thank you for considering to help out with the source code! We welcome 
 contributions from anyone on the internet, and are grateful for even the 
@@ -36,7 +35,6 @@ possible through some other means.
 
 ---
 <a id="chinese"></a> <br><br>
-<div align=center><img height="150" src="https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png"/></div>
 <br>
 <br>
 # 社区贡献规则
