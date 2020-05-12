@@ -26,11 +26,11 @@ Please make sure your contributions adhere to our coding guidelines:
  * Commit messages should be prefixed with the package(s) they modify.
    * E.g. "SnapScale, chain: "
 
-## Can I have feature X
+## Can I have feature X?
 
 Before you submit a feature request, please check up with the core 
 devs first on [our Discord channel](https://discord.gg/wKkjUnQ) and make sure that it isn't 
-possible through some other means. 
+possible through some other means. <br>
 
 
 ---
