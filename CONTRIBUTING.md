@@ -1,3 +1,8 @@
+<br>
+<br>
+<a href="#chinese">点击此处直达中文版 </a>
+<br>
+<br>
 # Contributing
 
 Thank you for considering to help out with the source code! We welcome 
@@ -27,3 +32,32 @@ Please make sure your contributions adhere to our coding guidelines:
 Before you submit a feature request, please check up with the core 
 devs first on [our Discord channel](https://discord.gg/wKkjUnQ) and make sure that it isn't 
 possible through some other means. 
+
+
+---
+<a id="chinese"></a> <br><br>
+<div align=center><img height="150" src="https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png"/></div>
+<br>
+<br>
+# 社区贡献规则
+
+非常感谢您参与到我们的开源代码项目中来！ 我们欢迎任何个人或企业在SnapScale的开源代码做贡献。
+
+
+
+
+对于微小的修改，贡献者首先应该分叉，之后在分叉仓库进行修复，并提交拉取请求，供维护者查看、合并到主代码库中；对于复杂的修改，请加入我们的[Discord 开发者社区](https://discord.gg/wKkjUnQ)与核心开发者进行沟通，以确保这些更改符合项目的基本理念；获得早期反馈，使代码审查及合并快速又简单。
+
+## 代码贡献规则
+
+贡献者应确保遵守以下编码准则：
+
+ * 遵守Google C ++ 
+[编程规范](https://google.github.io/styleguide/cppguide.html) ；
+ * 必须基于`master` 分支发出拉取请求；
+ * 提交的消息应以其修改软件包的前缀命名；
+   * 例如: “snapscale, chain：xxx”
+
+## 提交新功能
+
+在提交新功能请求之前，请先在我们的[Discord 开发者社区](https://discord.gg/wKkjUnQ)与核心开发者进行联系。
