@@ -129,7 +129,7 @@ SnapScale 基于 [EOSIO](https://github.com/EOSIO/eos) 的源代码搭建，并�
 - **链上黑名单** - 使用智能合约维护黑名单，确保黑名单用户永久无法通过P2P或HTTP与节点进行交流;
 - **UTXO** - 增加了UTXO交易模型，支持余额模型和UTXO模型之间相互进行转账操作;
 
-## Resources
+## 资源
 
 1. [网站](https://snapscale.org/)
 2. [白皮书](./SnapScale%20%E6%8A%80%E6%9C%AF%E7%99%BD%E7%9A%AE%E4%B9%A6.pdf)
@@ -137,7 +137,7 @@ SnapScale 基于 [EOSIO](https://github.com/EOSIO/eos) 的源代码搭建，并�
 4. [协议许可](https://github.com/snapscale/snapscale/blob/master/LICENSE)
 5. [代码贡献](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
 
-## Documentation
+## 文档
 
 1. [Nodeos](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos)
     - [Usage](https://github.com/SnapScale/SnapScale/tree/master/docs/01_nodeos/02_usage)
