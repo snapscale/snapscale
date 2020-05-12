@@ -25,7 +25,7 @@ SnapScale is a fork of [EOSIO](https://github.com/EOSIO/eos) and is updated in l
 ## Resources
 
 1. [Website](https://snapscale.org/)
-2. [Whitepaper](https://github.com/snapscale/snapscale/blob/master/SnapScale%20Technical%20Whitepaper%20-%20EN.pdf)
+2. [Whitepaper](./SnapScale%20Whitepaper%20-%20EN.pdf)
 3. [Discord](https://discord.gg/wKkjUnQ/)
 4. [License](https://github.com/snapscale/snapscale/blob/master/LICENSE)
 5. [Contribution](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
@@ -52,10 +52,6 @@ See other dependencies:
 
 SnapScale is neither launching nor operating any initial public blockchains based upon the SnapScale software. This release refers only to version 1.0 of our open source software. We caution those who wish to use blockchains built on SnapScale to carefully vet the companies and organizations launching blockchains based on SnapScale before disclosing any private keys to their derivative software.
 
-## Useful Links
-
-[<font color='red'>testnet.snapscale.io</font>](https://testnet.snapscale.io/)
-
 ## Supported Operating Systems
 
 SnapScale currently supports the following operating systems:  
@@ -73,7 +69,7 @@ SnapScale currently supports the following operating systems:
 ## Building the source
 
 ```sh
-git clone https://github.com/xeniroio/SnapScale
+git clone https://github.com/snapscale/snapscale.git
 
 cd SnapScale
 
@@ -136,7 +132,7 @@ SnapScale 基于 [EOSIO](https://github.com/EOSIO/eos) 的源代码搭建，并�
 ## Resources
 
 1. [网站](https://snapscale.org/)
-2. [白皮书](https://github.com/snapscale/snapscale/blob/master/SnapScale%20Technical%20Whitepaper%20-%20EN.pdf)
+2. [白皮书](./SnapScale%20%E6%8A%80%E6%9C%AF%E7%99%BD%E7%9A%AE%E4%B9%A6.pdf)
 3. [Discord 社区](https://discord.gg/wKkjUnQ/)
 4. [协议许可](https://github.com/snapscale/snapscale/blob/master/LICENSE)
 5. [代码贡献](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
@@ -181,7 +177,7 @@ SnapScale 既不启动也不运行任何基于SnapScale 软件的初始公共区
 ## 构建源码
 
 ```sh
-git clone https://github.com/xeniroio/SnapScale
+git clone https://github.com/snapscale/snapscale.git
 
 cd SnapScale
 
