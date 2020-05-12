@@ -33,9 +33,9 @@ devs first on [our Discord channel](https://discord.gg/wKkjUnQ) and make sure th
 possible through some other means. 
 
 
+
 ---
 <a id="chinese"></a> <br><br>
-<br>
 ## 社区贡献规则
 
 非常感谢您参与到我们的开源代码项目中来！ 我们欢迎任何个人或企业在SnapScale的开源代码做贡献。
