@@ -31,12 +31,10 @@ Please make sure your contributions adhere to our coding guidelines:
 Before you submit a feature request, please check up with the core 
 devs first on [our Discord channel](https://discord.gg/wKkjUnQ) and make sure that it isn't 
 possible through some other means. 
-
-
+<br><br><br>
 ---
-
-
 <a id="chinese"></a> <br><br>
+<br>
 <br>
 <br>
 # 社区贡献规则
