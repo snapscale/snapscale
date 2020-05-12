@@ -113,8 +113,10 @@ All repositories and other materials are provided subject to the terms of this [
 
 
 ---
-<a id="chinese"></a>
-
+<a id="chinese"></a> <br><br>
+<div align=center><img height="150" src="https://github.com/snapscale/snapscale/blob/master/snapscalelogo.png"/></div>
+<br>
+<br>
 边缘计算已经成为大多数物联网（IoT）解决方案中不可或缺的技术。随着IoT设备变得更加智能以及自动化，创建分布式的IoT网络对于维持信任以及释放边缘技术的潜力至关重要。SnapScale 旨在用区块链赋能边缘计算，并在网络边缘为分布式IoT网络创建协议。
 
 
