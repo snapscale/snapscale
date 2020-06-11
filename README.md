@@ -132,7 +132,7 @@ SnapScale 基于 [EOSIO](https://github.com/EOSIO/eos) 的源代码搭建，并�
 ## 资源
 
 1. [网站](https://snapscale.org/)
-2. [白皮书](./SnapScale%20%E6%8A%80%E6%9C%AF%E7%99%BD%E7%9A%AE%E4%B9%A6.pdf)
+2. [白皮书](./SnapScale%20%E6%8A%80%E6%9C%AF%E7%99%BD%E7%9A%AE%E4%B9%A6%20-%20CN.pdf)
 3. [Discord 社区](https://discord.gg/wKkjUnQ/)
 4. [协议许可](https://github.com/snapscale/snapscale/blob/master/LICENSE)
 5. [代码贡献](https://github.com/snapscale/snapscale/blob/master/CONTRIBUTING.md)
