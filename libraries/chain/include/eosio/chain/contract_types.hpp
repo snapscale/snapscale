@@ -5,6 +5,7 @@
 #include <eosio/chain/config.hpp>
 #include <eosio/chain/types.hpp>
 
+// native function in contract eosio.system/native.hpp
 namespace eosio { namespace chain {
 
 using action_name    = eosio::chain::action_name;

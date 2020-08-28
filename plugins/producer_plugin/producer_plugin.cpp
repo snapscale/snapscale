@@ -1823,7 +1823,7 @@ void producer_plugin_impl::process_scheduled_and_incoming_trxs( const fc::time_p
             deadline_is_subjective = true;
             trx_deadline = deadline;
          }
-
+         //commit deferred transaction
          auto trace = chain.push_scheduled_transaction(trx_id, trx_deadline, 0, false);
          if (trace->except) {
             if (exception_is_exhausted(*trace->except, deadline_is_subjective)) {

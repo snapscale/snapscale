@@ -64,12 +64,12 @@ void apply_context::exec_one()
          receiver_account = &db.get<account_metadata_object,by_name>( receiver );
          privileged = receiver_account->is_privileged();
          auto native = control.find_apply_handler( receiver, act->account, act->name );
-         if( native ) {
+         if( native ) { // is native action
             if( trx_context.enforce_whiteblacklist && control.is_producing_block() ) {
                control.check_contract_list( receiver );
                control.check_action_list( act->account, act->name );
             }
-            (*native)( *this );
+            (*native)( *this ); // call native handler
          }
 
          if( ( receiver_account->code_hash != digest_type() ) &&
@@ -78,12 +78,12 @@ void apply_context::exec_one()
                      && receiver == config::system_account_name )
                   || control.is_builtin_activated( builtin_protocol_feature_t::forward_setcode )
                )
-         ) {
+         ) { //  receiver_account had deploy contract
             if( trx_context.enforce_whiteblacklist && control.is_producing_block() ) {
                control.check_contract_list( receiver );
                control.check_action_list( act->account, act->name );
             }
-            try {
+            try { // run code in wasm vm
                control.get_wasm_interface().apply( receiver_account->code_hash, receiver_account->vm_type, receiver_account->vm_version, *this );
             } catch( const wasm_exit& ) {}
          }
@@ -167,10 +167,10 @@ void apply_context::finalize_trace( action_trace& trace, const fc::time_point& s
 void apply_context::exec()
 {
    _notified.emplace_back( receiver, action_ordinal );
-   exec_one();
+   exec_one(); //exec action; in contract, use `require_recipient` insert to notice list `_notified`
    for( uint32_t i = 1; i < _notified.size(); ++i ) {
       std::tie( receiver, action_ordinal ) = _notified[i];
-      exec_one();
+      exec_one(); //exec action
    }
 
    if( _cfa_inline_actions.size() > 0 || _inline_actions.size() > 0 ) {

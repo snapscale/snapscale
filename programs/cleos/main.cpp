@@ -163,6 +163,9 @@ string url = "http://127.0.0.1:8888/";
 string default_wallet_url = "unix://" + (determine_home_directory() / "eosio-wallet" / (string(key_store_executable_name) + ".sock")).string();
 string wallet_url; //to be set to default_wallet_url in main
 bool no_verify = false;
+string https_cert_chain;
+string https_key;
+vector<string> https_client_root_certs;
 vector<string> headers;
 
 auto   tx_expiration = fc::seconds(30);
@@ -245,7 +248,7 @@ fc::variant call( const std::string& url,
                   const std::string& path,
                   const T& v ) {
    try {
-      auto sp = std::make_unique<eosio::client::http::connection_param>(context, parse_url(url) + path, no_verify ? false : true, headers);
+      auto sp = std::make_unique<eosio::client::http::connection_param>(context, parse_url(url) + path, no_verify ? false : true, headers, https_client_root_certs, https_cert_chain, https_key);
       return eosio::client::http::do_http_call(*sp, fc::variant(v), print_request, print_response );
    }
    catch(boost::system::system_error& e) {
@@ -305,6 +308,7 @@ void sign_transaction(signed_transaction& trx, fc::variant& required_keys, const
 
 fc::variant push_transaction( signed_transaction& trx, packed_transaction::compression_type compression = packed_transaction::compression_type::none ) {
    auto info = get_info();
+   trx.mec_acc = info.mec_acc;
 
    if (trx.signatures.size() == 0) { // #5445 can't change txn content if already signed
       trx.expiration = info.head_block_time + tx_expiration;
@@ -469,12 +473,22 @@ void print_result( const fc::variant& result ) { try {
          string status = "failed";
          int64_t net = -1;
          int64_t cpu = -1;
+#ifdef RESOURCE_UNLIMIT
+         int64_t gas = -1;
+         int64_t gas_price = 0;
+         string fee_trx_id;
+#endif // !RESOURCE_UNLIMIT
          if( processed.get_object().contains( "receipt" )) {
             const auto& receipt = processed["receipt"];
             if( receipt.is_object()) {
                status = receipt["status"].as_string();
                net = receipt["net_usage_words"].as_int64() * 8;
                cpu = receipt["cpu_usage_us"].as_int64();
+#ifdef RESOURCE_UNLIMIT
+               gas = receipt["gas_usage"].as_int64();
+               gas_price = receipt["gas_price"].as_int64();
+               fee_trx_id = receipt["fee_trx_id"].as_string();
+#endif // !RESOURCE_UNLIMIT
             }
          }
 
@@ -490,8 +504,31 @@ void print_result( const fc::variant& result ) { try {
          } else {
             cerr << cpu;
          }
-
+#ifndef RESOURCE_UNLIMIT
          cerr << " us\n";
+#else
+         cerr << " us  ";
+         if( gas < 0 ) {
+            cerr << "<unknown>";
+         } else {
+            cerr << gas;
+         }
+         cerr << " gas  ";
+
+         if( gas_price < 0 ) {
+            cerr << "<unknown>";
+         } else {
+            cerr << gas_price;
+         }
+         cerr << " gas_price\n";
+
+         if( fee_trx_id.size() == 0 ) {
+            cerr << "[dotn't need fee";
+         } else {
+            cerr << "[fee_trx_id is " << fee_trx_id;
+         }
+         cerr << "]\n";
+#endif // !RESOURCE_UNLIMIT
 
          if( status == "failed" ) {
             auto soft_except = processed["except"].as<fc::optional<fc::exception>>();
@@ -580,6 +617,7 @@ chain::action create_action(const vector<permission_level>& authorization, const
    return chain::action{authorization, code, act, variant_to_bin(code, act, args)};
 }
 
+#ifndef RESOURCE_UNLIMIT
 chain::action create_buyram(const name& creator, const name& newaccount, const asset& quantity) {
    fc::variant act_payload = fc::mutable_variant_object()
          ("payer", creator.to_string())
@@ -608,6 +646,7 @@ chain::action create_delegate(const name& from, const name& receiver, const asse
    return create_action(get_account_permissions(tx_permission, {from,config::active_name}),
                         config::system_account_name, N(delegatebw), act_payload);
 }
+#endif // !RESOURCE_UNLIMIT
 
 fc::variant regproducer_variant(const account_name& producer, const public_key_type& key, const string& url, uint16_t location) {
    return fc::mutable_variant_object()
@@ -1046,6 +1085,7 @@ struct create_account_subcommand {
       createAccount->add_option("ActiveKey", active_key_str, localized("The active public key or permission level for the new account"));
 
       if (!simple) {
+#ifndef RESOURCE_UNLIMIT
          createAccount->add_option("--stake-net", stake_net,
                                    (localized("The amount of tokens delegated for net bandwidth")))->required();
          createAccount->add_option("--stake-cpu", stake_cpu,
@@ -1058,6 +1098,7 @@ struct create_account_subcommand {
                                    (localized("The amount of RAM bytes to purchase for the new account in tokens")));
          createAccount->add_flag("--transfer", transfer,
                                  (localized("Transfer voting power and right to unstake tokens to receiver")));
+#endif // !RESOURCE_UNLIMIT
       }
 
       add_standard_transaction_options(createAccount, "creator@active");
@@ -1088,6 +1129,7 @@ struct create_account_subcommand {
             }
 
             auto create = create_newaccount(name(creator), name(account_name), owner, active);
+#ifndef RESOURCE_UNLIMIT
             if (!simple) {
                EOSC_ASSERT( buy_ram_eos.size() || buy_ram_bytes_in_kbytes || buy_ram_bytes, "ERROR: One of --buy-ram, --buy-ram-kbytes or --buy-ram-bytes should have non-zero value" );
                EOSC_ASSERT( !buy_ram_bytes_in_kbytes || !buy_ram_bytes, "ERROR: --buy-ram-kbytes and --buy-ram-bytes cannot be set at the same time" );
@@ -1104,6 +1146,9 @@ struct create_account_subcommand {
             } else {
                send_actions( { create } );
             }
+#else
+               send_actions( { create } );
+#endif // !RESOURCE_UNLIMIT
       });
    }
 };
@@ -1415,6 +1460,7 @@ struct get_transaction_id_subcommand {
    }
 };
 
+#ifndef RESOURCE_UNLIMIT
 struct delegate_bandwidth_subcommand {
    string from_str;
    string receiver_str;
@@ -1455,7 +1501,39 @@ struct delegate_bandwidth_subcommand {
       });
    }
 };
+#else
+struct delegate_bandwidth_subcommand {
+   string from_str;
+   string receiver_str;
+   string stake_amount;
+   // string stake_storage_amount;
+   string buy_ram_amount;
+   uint32_t buy_ram_bytes = 0;
+   bool transfer = false;
 
+   delegate_bandwidth_subcommand(CLI::App* actionRoot) {
+      auto delegate_bandwidth = actionRoot->add_subcommand("delegatebw", localized("Delegate bandwidth"));
+      delegate_bandwidth->add_option("from", from_str, localized("The account to delegate bandwidth from"))->required();
+      delegate_bandwidth->add_option("receiver", receiver_str, localized("The account to receive the delegated bandwidth"))->required();
+     delegate_bandwidth->add_option("stake_quantity", stake_amount, localized("The amount of tokens to stake"))->required();
+      delegate_bandwidth->add_flag("--transfer", transfer, localized("Transfer voting power and right to unstake tokens to receiver"));
+      add_standard_transaction_options(delegate_bandwidth, "from@active");
+
+      delegate_bandwidth->set_callback([this] {
+         fc::variant act_payload = fc::mutable_variant_object()
+                  ("from", from_str)
+                  ("receiver", receiver_str)
+                  ("stake_quantity", to_asset(stake_amount))
+                  ("transfer", transfer);
+         auto accountPermissions = get_account_permissions(tx_permission, {name(from_str), config::active_name});
+         std::vector<chain::action> acts{create_action(accountPermissions, config::system_account_name, N(delegatebw), act_payload)};
+         send_actions(std::move(acts));
+      });
+   }
+};
+#endif // !RESOURCE_UNLIMIT
+
+#ifndef RESOURCE_UNLIMIT
 struct undelegate_bandwidth_subcommand {
    string from_str;
    string receiver_str;
@@ -1482,6 +1560,31 @@ struct undelegate_bandwidth_subcommand {
       });
    }
 };
+#else
+struct undelegate_bandwidth_subcommand {
+   string from_str;
+   string receiver_str;
+   string unstake_amount;
+   uint64_t unstake_storage_bytes;
+
+   undelegate_bandwidth_subcommand(CLI::App* actionRoot) {
+      auto undelegate_bandwidth = actionRoot->add_subcommand("undelegatebw", localized("Undelegate bandwidth"));
+      undelegate_bandwidth->add_option("from", from_str, localized("The account undelegating bandwidth"))->required();
+      undelegate_bandwidth->add_option("receiver", receiver_str, localized("The account to undelegate bandwidth from"))->required();
+      undelegate_bandwidth->add_option("unstake_quantity", unstake_amount, localized("The amount of tokens to undelegate"))->required();
+      add_standard_transaction_options(undelegate_bandwidth, "from@active");
+
+      undelegate_bandwidth->set_callback([this] {
+         fc::variant act_payload = fc::mutable_variant_object()
+                  ("from", from_str)
+                  ("receiver", receiver_str)
+                  ("unstake_quantity", to_asset(unstake_amount));
+         auto accountPermissions = get_account_permissions(tx_permission, {name(from_str), config::active_name});
+         send_actions({create_action(accountPermissions, config::system_account_name, N(undelegatebw), act_payload)});
+      });
+   }
+};
+#endif // !RESOURCE_UNLIMIT
 
 struct bidname_subcommand {
    string bidder_str;
@@ -1582,6 +1685,7 @@ struct list_bw_subcommand {
    }
 };
 
+#ifndef RESOURCE_UNLIMIT
 struct buyram_subcommand {
    string from_str;
    string receiver_str;
@@ -1628,6 +1732,7 @@ struct sellram_subcommand {
          });
    }
 };
+#endif // !RESOURCE_UNLIMIT
 
 struct claimrewards_subcommand {
    string owner;
@@ -1705,6 +1810,7 @@ struct canceldelay_subcommand {
    }
 };
 
+#ifndef RESOURCE_UNLIMIT
 struct deposit_subcommand {
    string owner_str;
    string amount_str;
@@ -2103,6 +2209,7 @@ struct closerex_subcommand {
       });
    }
 };
+#endif // !RESOURCE_UNLIMIT
 
 void get_account( const string& accountName, const string& coresym, bool json_format ) {
    fc::variant json;
@@ -2201,41 +2308,6 @@ void get_account( const string& accountName, const string& coresym, bool json_fo
          ss << unit;
          return ss.str();
       };
-
-
-
-      std::cout << "memory: " << std::endl
-                << indent << "quota: " << std::setw(15) << to_pretty_net(res.ram_quota) << "  used: " << std::setw(15) << to_pretty_net(res.ram_usage) << std::endl << std::endl;
-
-      std::cout << "net bandwidth: " << std::endl;
-      if ( res.total_resources.is_object() ) {
-         auto net_total = to_asset(res.total_resources.get_object()["net_weight"].as_string());
-
-         if( net_total.get_symbol() != unstaking.get_symbol() ) {
-            // Core symbol of nodeos responding to the request is different than core symbol built into cleos
-            unstaking = asset( 0, net_total.get_symbol() ); // Correct core symbol for unstaking asset.
-            staked = asset( 0, net_total.get_symbol() ); // Correct core symbol for staked asset.
-         }
-
-         if( res.self_delegated_bandwidth.is_object() ) {
-            asset net_own =  asset::from_string( res.self_delegated_bandwidth.get_object()["net_weight"].as_string() );
-            staked = net_own;
-
-            auto net_others = net_total - net_own;
-
-            std::cout << indent << "staked:" << std::setw(20) << net_own
-                      << std::string(11, ' ') << "(total stake delegated from account to self)" << std::endl
-                      << indent << "delegated:" << std::setw(17) << net_others
-                      << std::string(11, ' ') << "(total staked delegated to account from others)" << std::endl;
-         }
-         else {
-            auto net_others = net_total;
-            std::cout << indent << "delegated:" << std::setw(17) << net_others
-                      << std::string(11, ' ') << "(total staked delegated to account from others)" << std::endl;
-         }
-      }
-
-
       auto to_pretty_time = []( int64_t nmicro, uint8_t width_for_units = 5 ) {
          if(nmicro == -1) {
              // special case. Treat it as unlimited
@@ -2268,6 +2340,39 @@ void get_account( const string& accountName, const string& coresym, bool json_fo
          ss << unit;
          return ss.str();
       };
+
+
+      std::cout << "memory: " << std::endl
+                << indent << "quota: " << std::setw(15) << to_pretty_net(res.ram_quota) << "  used: " << std::setw(15) << to_pretty_net(res.ram_usage) << std::endl << std::endl;
+
+#ifndef RESOURCE_UNLIMIT
+      std::cout << "net bandwidth: " << std::endl;
+      if ( res.total_resources.is_object() ) {
+         auto net_total = to_asset(res.total_resources.get_object()["net_weight"].as_string());
+
+         if( net_total.get_symbol() != unstaking.get_symbol() ) {
+            // Core symbol of nodeos responding to the request is different than core symbol built into cleos
+            unstaking = asset( 0, net_total.get_symbol() ); // Correct core symbol for unstaking asset.
+            staked = asset( 0, net_total.get_symbol() ); // Correct core symbol for staked asset.
+         }
+
+         if( res.self_delegated_bandwidth.is_object() ) {
+            asset net_own =  asset::from_string( res.self_delegated_bandwidth.get_object()["net_weight"].as_string() );
+            staked = net_own;
+
+            auto net_others = net_total - net_own;
+
+            std::cout << indent << "staked:" << std::setw(20) << net_own
+                      << std::string(11, ' ') << "(total stake delegated from account to self)" << std::endl
+                      << indent << "delegated:" << std::setw(17) << net_others
+                      << std::string(11, ' ') << "(total staked delegated to account from others)" << std::endl;
+         }
+         else {
+            auto net_others = net_total;
+            std::cout << indent << "delegated:" << std::setw(17) << net_others
+                      << std::string(11, ' ') << "(total staked delegated to account from others)" << std::endl;
+         }
+      }
 
 
       std::cout << std::fixed << setprecision(3);
@@ -2329,6 +2434,70 @@ void get_account( const string& accountName, const string& coresym, bool json_fo
             std::cout << std::endl;
          }
       }
+#else
+      if( res.core_liquid_balance.valid() )
+         std::cout << "gas_price: " << std::setw(15) << asset( res.gas_price, res.core_liquid_balance->get_symbol() ) << std::endl << std::endl;
+      else
+         std::cout << "gas_price: " << std::setw(15) << asset( res.gas_price ) << std::endl << std::endl;
+
+      std::cout << "stake: " << std::endl;
+      if ( res.total_resources.is_object() ) {
+         auto total_stake_weight = to_asset(res.total_resources.get_object()["total_stake_weight"].as_string());
+
+         if( total_stake_weight.get_symbol() != unstaking.get_symbol() ) {
+            // Core symbol of nodeos responding to the request is different than core symbol built into cleos
+            unstaking = asset( 0, total_stake_weight.get_symbol() ); // Correct core symbol for unstaking asset.
+            staked = asset( 0, total_stake_weight.get_symbol() ); // Correct core symbol for staked asset.
+         }
+
+         if( res.self_delegated_bandwidth.is_object() ) {
+            asset stake_own =  asset::from_string( res.self_delegated_bandwidth.get_object()["stake_weight"].as_string() );
+            staked = stake_own;
+
+            auto stake_by_others = total_stake_weight - stake_own;
+
+            std::cout << indent << "staked:" << std::setw(20) << stake_own
+                     << std::string(11, ' ') << "(total stake delegated from account to self)" << std::endl
+                     << indent << "delegated:" << std::setw(17) << stake_by_others
+                     << std::string(11, ' ') << "(total staked delegated to account from others)" << std::endl;
+         }
+         else {
+            auto stake_by_others = total_stake_weight;
+            std::cout << indent << "delegated:" << std::setw(17) << stake_by_others
+                     << std::string(11, ' ') << "(total staked delegated to account from others)" << std::endl;
+         }
+      }
+
+      // std::cout << std::fixed << setprecision(3);
+      // std::cout << indent << std::left << std::setw(11) << "resource used:"      << std::right << std::setw(18) << to_pretty_net( res.net_limit.used ) << "\n";
+      // std::cout << indent << std::left << std::setw(11) << "resource available:" << std::right << std::setw(18) << to_pretty_net( res.net_limit.available ) << "\n";
+      // std::cout << indent << std::left << std::setw(11) << "resource limit:"     << std::right << std::setw(18) << to_pretty_net( res.net_limit.max ) << "\n";
+      std::cout << std::endl;
+
+      if( res.refund_request.is_object() ) {
+         auto obj = res.refund_request.get_object();
+         auto request_time = fc::time_point_sec::from_iso_string( obj["request_time"].as_string() );
+         fc::time_point refund_time = request_time + fc::days(3);
+         auto now = res.head_block_time;
+         asset stake = asset::from_string( obj["stake_amount"].as_string() );
+         unstaking = stake;
+
+         if( unstaking > asset( 0, unstaking.get_symbol() ) ) {
+            std::cout << std::fixed << setprecision(3);
+            std::cout << "unstaking tokens:" << std::endl;
+            std::cout << indent << std::left << std::setw(25) << "time of unstake request:" << std::right << std::setw(20) << string(request_time);
+            if( now >= refund_time ) {
+               std::cout << " (available to claim now with 'eosio::refund' action)\n";
+            } else {
+               std::cout << " (funds will be available in " << to_pretty_time( (refund_time - now).count(), 0 ) << ")\n";
+            }
+            std::cout << indent << std::left << std::setw(25) << "from stake:" << std::right << std::setw(18) << stake << std::endl;
+            std::cout << indent << std::left << std::setw(25) << "total:" << std::right << std::setw(18) << unstaking << std::endl;
+            std::cout << std::endl;
+         }
+      }
+      
+#endif // !RESOURCE_UNLIMIT
 
       if( res.core_liquid_balance.valid() ) {
          std::cout << res.core_liquid_balance->get_symbol().name() << " balances: " << std::endl;
@@ -2391,6 +2560,36 @@ CLI::callback_t header_opt_callback = [](CLI::results_t res) {
    return true;
 };
 
+CLI::callback_t root_certs_opt_callback = [](CLI::results_t res) {
+   vector<string>::iterator itr;
+
+   for (itr = res.begin(); itr != res.end(); itr++) {
+
+      std::string pem_str = *itr;
+      if( !boost::algorithm::starts_with( pem_str, "-----BEGIN CERTIFICATE-----\n" )) {
+         try {
+            auto infile = std::ifstream( pem_str );
+            std::stringstream sstr;
+            sstr << infile.rdbuf();
+            pem_str = sstr.str();
+            EOS_ASSERT( boost::algorithm::starts_with( pem_str, "-----BEGIN CERTIFICATE-----\n" ),
+                        chain::invalid_http_client_root_cert,
+                        "File does not appear to be a PEM encoded certificate" );
+         } catch ( const fc::exception& e ) {
+            elog( "Failed to read PEM ${f} : ${e}", ("f", *itr)( "e", e.to_detail_string()));
+         }
+      }
+
+      try {
+         https_client_root_certs.push_back(pem_str);
+      } catch ( const fc::exception& e ) {
+         elog( "Failed to read PEM : ${e} \n${pem}\n", ("pem", pem_str)( "e", e.to_detail_string()));
+      }
+   }
+
+   return true;
+};
+
 int main( int argc, char** argv ) {
    setlocale(LC_ALL, "");
    bindtextdomain(locale_domain, locale_path);
@@ -2411,6 +2610,9 @@ int main( int argc, char** argv ) {
 
    app.add_option( "-r,--header", header_opt_callback, localized("pass specific HTTP header; repeat this option to pass multiple headers"));
    app.add_flag( "-n,--no-verify", no_verify, localized("don't verify peer certificate when using HTTPS"));
+   app.add_option( "--https-root-cert-file", root_certs_opt_callback, localized("add one trusted certification authority (may specify multiple times)"));
+   app.add_option( "--https-certificate-chain-file", https_cert_chain, localized("Filename with the certificate chain to present on https connections. PEM format. Required for https."));
+   app.add_option( "--https-private-key-file", https_key, localized("Filename with https private key in PEM format. Required for https"));
    app.add_flag( "--no-auto-" + string(key_store_executable_name), no_auto_keosd, localized("don't automatically launch a ${k} if one is not currently running", ("k", key_store_executable_name)));
    app.set_callback([&app]{ ensure_keosd_running(&app);});
 
@@ -4009,10 +4211,10 @@ int main( int argc, char** argv ) {
    auto listBandWidth = list_bw_subcommand(system);
    auto bidname = bidname_subcommand(system);
    auto bidnameinfo = bidname_info_subcommand(system);
-
+#ifndef RESOURCE_UNLIMIT
    auto buyram = buyram_subcommand(system);
    auto sellram = sellram_subcommand(system);
-
+#endif // !RESOURCE_UNLIMIT
    auto claimRewards = claimrewards_subcommand(system);
 
    auto regProxy = regproxy_subcommand(system);
@@ -4020,6 +4222,7 @@ int main( int argc, char** argv ) {
 
    auto cancelDelay = canceldelay_subcommand(system);
 
+#ifndef RESOURCE_UNLIMIT
    auto rex = system->add_subcommand("rex", localized("Actions related to REX (the resource exchange)"));
    rex->require_subcommand();
    auto deposit        = deposit_subcommand(rex);
@@ -4041,7 +4244,7 @@ int main( int argc, char** argv ) {
    auto updaterex      = updaterex_subcommand(rex);
    auto rexexec        = rexexec_subcommand(rex);
    auto closerex       = closerex_subcommand(rex);
-
+#endif // !RESOURCE_UNLIMIT
 
    try {
        app.parse(argc, argv);

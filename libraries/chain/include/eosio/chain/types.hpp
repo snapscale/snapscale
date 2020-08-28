@@ -42,6 +42,10 @@
 
 #define _V(n, v)  fc::mutable_variant_object(n, v)
 
+#define RESOURCE_UNLIMIT
+#define GAS_PRICE_DEFALT   10
+#define GAS_PRICE_MIN   0
+
 namespace eosio { namespace chain {
    using                               std::map;
    using                               std::vector;

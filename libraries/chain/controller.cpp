@@ -22,9 +22,11 @@
 #include <eosio/chain/protocol_feature_manager.hpp>
 #include <eosio/chain/authorization_manager.hpp>
 #include <eosio/chain/resource_limits.hpp>
+#include <eosio/chain/txfee_manager.hpp>
 #include <eosio/chain/chain_snapshot.hpp>
 #include <eosio/chain/thread_utils.hpp>
 #include <eosio/chain/platform_timer.hpp>
+#include <eosio/chain/block.hpp>
 
 #include <chainbase/chainbase.hpp>
 #include <fc/io/json.hpp>
@@ -342,9 +344,9 @@ struct controller_impl {
    set_apply_handler( account_name(#receiver), account_name(#contract), action_name(#action), \
                       &BOOST_PP_CAT(apply_, BOOST_PP_CAT(contract, BOOST_PP_CAT(_,action) ) ) )
 
-   SET_APP_HANDLER( eosio, eosio, newaccount );
-   SET_APP_HANDLER( eosio, eosio, setcode );
-   SET_APP_HANDLER( eosio, eosio, setabi );
+   SET_APP_HANDLER( eosio, eosio, newaccount ); // apply_eosio_newaccount
+   SET_APP_HANDLER( eosio, eosio, setcode );    // apply_eosio_setcode
+   SET_APP_HANDLER( eosio, eosio, setabi );     // apply_eosio_setabi
    SET_APP_HANDLER( eosio, eosio, updateauth );
    SET_APP_HANDLER( eosio, eosio, deleteauth );
    SET_APP_HANDLER( eosio, eosio, linkauth );
@@ -1111,6 +1113,7 @@ struct controller_impl {
       return fc::make_scoped_exit( std::move(callback) );
    }
 
+   // be called by push_scheduled_transaction
    transaction_trace_ptr apply_onerror( const generated_transaction& gtrx,
                                         fc::time_point deadline,
                                         fc::time_point start,
@@ -1148,7 +1151,7 @@ struct controller_impl {
 
          auto restore = make_block_restore_point();
          trace->receipt = push_receipt( gtrx.trx_id, transaction_receipt::soft_fail,
-                                        trx_context.billed_cpu_time_us, trace->net_usage );
+                                        trx_context.billed_cpu_time_us, trace->net_usage );dlog("wcctest");
          fc::move_append( pending->_block_stage.get<building_block>()._actions, move(trx_context.executed) );
 
          trx_context.squash();
@@ -1245,7 +1248,7 @@ struct controller_impl {
          trace->block_time = self.pending_block_time();
          trace->producer_block_id = self.pending_producer_block_id();
          trace->scheduled = true;
-         trace->receipt = push_receipt( gtrx.trx_id, transaction_receipt::expired, billed_cpu_time_us, 0 ); // expire the transaction
+         trace->receipt = push_receipt( gtrx.trx_id, transaction_receipt::expired, billed_cpu_time_us, 0 ); dlog("wcctest"); // expire the transaction
          trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
          emit( self.accepted_transaction, trx );
          emit( self.applied_transaction, std::tie(trace, dtrx) );
@@ -1289,7 +1292,7 @@ struct controller_impl {
          trace->receipt = push_receipt( gtrx.trx_id,
                                         transaction_receipt::executed,
                                         trx_context.billed_cpu_time_us,
-                                        trace->net_usage );
+                                        trace->net_usage );dlog("wcctest");
 
          fc::move_append( pending->_block_stage.get<building_block>()._actions, move(trx_context.executed) );
 
@@ -1367,7 +1370,7 @@ struct controller_impl {
          resource_limits.add_transaction_usage( trx_context.bill_to_accounts, cpu_time_to_bill_us, 0,
                                                 block_timestamp_type(self.pending_block_time()).slot ); // Should never fail
 
-         trace->receipt = push_receipt(gtrx.trx_id, transaction_receipt::hard_fail, cpu_time_to_bill_us, 0);
+         trace->receipt = push_receipt(gtrx.trx_id, transaction_receipt::hard_fail, cpu_time_to_bill_us, 0);dlog("wcctest");
          trace->account_ram_delta = account_delta( gtrx.payer, trx_removal_ram_delta );
 
          emit( self.accepted_transaction, trx );
@@ -1388,7 +1391,9 @@ struct controller_impl {
     */
    template<typename T>
    const transaction_receipt& push_receipt( const T& trx, transaction_receipt_header::status_enum status,
-                                            uint64_t cpu_usage_us, uint64_t net_usage ) {
+                                            uint64_t cpu_usage_us, uint64_t net_usage, 
+                                            int64_t ram_usage = 0,
+                                            int64_t gas_price=GAS_PRICE_DEFALT ) {
       uint64_t net_usage_words = net_usage / 8;
       EOS_ASSERT( net_usage_words*8 == net_usage, transaction_exception, "net_usage is not divisible by 8" );
       auto& receipts = pending->_block_stage.get<building_block>()._pending_trx_receipts;
@@ -1396,6 +1401,11 @@ struct controller_impl {
       transaction_receipt& r = receipts.back();
       r.cpu_usage_us         = cpu_usage_us;
       r.net_usage_words      = net_usage_words;
+   #ifdef RESOURCE_UNLIMIT
+      r.calculate_gas(ram_usage);
+      r.gas_price = gas_price;
+      dlog("calculate_gas gas_price=${gas_price} ram_usage=${ram_usage}", ("gas_price", gas_price)("ram_usage", ram_usage) );
+   #endif // !RESOURCE_UNLIMIT
       r.status               = status;
       return r;
    }
@@ -1461,7 +1471,7 @@ struct controller_impl {
                        false
                );
             }
-            trx_context.exec();
+            trx_context.exec(); // exec action
             trx_context.finalize(); // Automatically rounds up network and CPU usage in trace and bills payers if successful
 
             auto restore = make_block_restore_point();
@@ -1470,10 +1480,71 @@ struct controller_impl {
                transaction_receipt::status_enum s = (trx_context.delay == fc::seconds(0))
                                                     ? transaction_receipt::executed
                                                     : transaction_receipt::delayed;
+#ifndef RESOURCE_UNLIMIT                                                    
                trace->receipt = push_receipt(*trx->packed_trx(), s, trx_context.billed_cpu_time_us, trace->net_usage);
+#else              
+               // hadle fee
+               if( trn.actions.size() && trn.actions[0].authorization.size()) {
+                  try {
+                     /// calculate ram deltas
+                     int64_t trn_ram_delta = 0;
+                     for(auto action_trace : trace->action_traces){
+                        for(auto deltas : action_trace.account_ram_deltas){
+                           dlog("onfee actions ram: deltas=${deltas} account=${account}",
+                                 ("deltas", deltas.delta)("account", deltas.account) );
+
+                           if(deltas.delta <= 0)
+                              continue;
+
+                           trn_ram_delta += deltas.delta;
+                        }
+                     }
+
+                     const account_name &actor = trn.actions[0].authorization[0].actor;
+                     const auto action_name = trn.actions[0].name;
+                     
+                     int64_t gasprice = GAS_PRICE_DEFALT;
+                     resource_limits.get_gas_price(actor, gasprice);
+                     trace->receipt = push_receipt(*trx->packed_trx(), s, trx_context.billed_cpu_time_us, trace->net_usage, trn_ram_delta, gasprice);dlog("wcctest");
+                     EOS_ASSERT( trace->receipt, transaction_exception, "trace->receipt is nullptr!" );
+
+                     const int64_t gasfee = trace->receipt->gas_usage * trace->receipt->gas_price;
+                     EOS_ASSERT( gasfee <= std::numeric_limits<int64_t>::max(), transaction_exception, "gasfee is overflow onfee" );
+
+                     asset fee(gasfee); 
+                     dlog("onfee actions gas: gas=${gas} gasprice=${gasprice} fee=${fee} action=${action} actor=${actor} mec=${mec}",
+                           ("gas", trace->receipt->gas_usage)("gasprice", trace->receipt->gas_price)("fee", fee)
+                           ("action", action_name)("actor", actor)("mec", trn.mec_acc) );
+                     
+                     if(gasfee>0){
+                        transaction_metadata_ptr onftrx = 
+                                          transaction_metadata::create_no_recover_keys( packed_transaction( get_on_fee_transaction(fee, actor, trn.mec_acc) ), transaction_metadata::trx_type::implicit );
+                        trace->receipt->fee_trx_id = onftrx->id();
+                        auto onftrace = push_transaction(onftrx, fc::time_point::maximum(), self.get_global_properties().configuration.min_transaction_cpu_usage, true);
+                        if( onftrace->except ) 
+                           throw *onftrace->except;
+                     }
+                     else{
+                        dlog("onfee actions gas: ${actor} is free", 
+                              ("actor", actor) );
+                     }
+
+                  } catch( const fc::exception& e ) {
+                     EOS_ASSERT(false, transaction_exception, "onfee transaction failed, exception: ${e}", ( "e", e ));
+                  } catch( ... ) {
+                     EOS_ASSERT(false, transaction_exception,"onfee transaction failed, shouldn't enough asset to pay for transaction fee");
+                  }
+               }
+               else{
+                  trace->receipt = push_receipt(*trx->packed_trx(), s, trx_context.billed_cpu_time_us, trace->net_usage);dlog("wcctest");
+               }
+               
+#endif // !RESOURCE_UNLIMIT    
+
                trx->billed_cpu_time_us = trx_context.billed_cpu_time_us;
                pending->_block_stage.get<building_block>()._pending_trx_metas.emplace_back(trx);
-            } else {
+
+            } else { // trx is implicit (ex: onfee, onblock),  don't calculate gas
                transaction_receipt_header r;
                r.status = transaction_receipt::executed;
                r.cpu_usage_us = trx_context.billed_cpu_time_us;
@@ -1855,7 +1926,7 @@ struct controller_impl {
 #undef EOS_REPORT
    }
 
-
+   // come from p2p broadcast
    void apply_block( const block_state_ptr& bsp, controller::block_status s, const trx_meta_cache_lookup& trx_lookup )
    { try {
       try {
@@ -2407,6 +2478,43 @@ struct controller_impl {
       }
       return trx;
    }
+
+   signed_transaction get_on_fee_transaction( const asset &fee, const account_name &actor,const account_name &mec)
+   {
+      action on_fee_act;
+      on_fee_act.account = config::system_account_name;
+      on_fee_act.name = N(onfee);
+      on_fee_act.authorization = vector<permission_level>{{actor, config::active_name}};
+
+      fee_paramter param(actor, fee, self.head_block_header().producer, mec);
+      on_fee_act.data = fc::raw::pack(param);
+
+      signed_transaction trx;
+      trx.mec_acc = mec;
+      trx.actions.emplace_back(std::move(on_fee_act));
+      if( self.is_builtin_activated( builtin_protocol_feature_t::no_duplicate_deferred_id ) ) {
+         trx.expiration = time_point_sec();
+         trx.ref_block_num = 0;
+         trx.ref_block_prefix = 0;
+      } else {
+         trx.expiration = self.pending_block_time() + fc::microseconds(999'999); // Round up to nearest second to avoid appearing expired
+         trx.set_reference_block( self.head_block_id() );
+      }
+
+      return trx;
+   }
+
+   // void add_on_fee_action( signed_transaction &trx, const asset &fee, const account_name &actor)
+   // {
+   //    action on_fee_act;
+   //    on_fee_act.account = config::system_account_name;
+   //    on_fee_act.name = N(onfee);
+   //    on_fee_act.authorization = vector<permission_level>{{actor, config::active_name}};
+
+   //    fee_paramter param(actor, fee, self.head_block_header().producer);
+   //    on_fee_act.data = fc::raw::pack(param);
+   //    trx.actions.emplace_back(std::move(on_fee_act));
+   // }
 
 }; /// controller_impl
 

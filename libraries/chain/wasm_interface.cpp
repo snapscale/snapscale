@@ -177,6 +177,14 @@ class privileged_api : public context_aware_api {
          context.control.preactivate_feature( feature_digest );
       }
 
+      void set_gas_price( account_name account, int64_t gas_price) {
+         EOS_ASSERT(gas_price >= GAS_PRICE_MIN, wasm_execution_error, "invalid value for gas_price limit expected [GAS_PRICE_MIN,INT64_MAX]");
+
+         int64_t ram_bytes = 0, net_weight = 0, cpu_weight = 0;
+         get_resource_limits(account, ram_bytes, net_weight, cpu_weight);
+         context.control.get_mutable_resource_limits_manager().set_account_limits(account, ram_bytes, net_weight, cpu_weight, gas_price);
+      }
+
       /**
        * update the resource limits associated with an account.  Note these new values will not take effect until the
        * next resource "tick" which is currently defined as a cycle boundary inside a block.
@@ -190,13 +198,22 @@ class privileged_api : public context_aware_api {
          EOS_ASSERT(ram_bytes >= -1, wasm_execution_error, "invalid value for ram resource limit expected [-1,INT64_MAX]");
          EOS_ASSERT(net_weight >= -1, wasm_execution_error, "invalid value for net resource weight expected [-1,INT64_MAX]");
          EOS_ASSERT(cpu_weight >= -1, wasm_execution_error, "invalid value for cpu resource weight expected [-1,INT64_MAX]");
+
+#ifdef RESOURCE_UNLIMIT 
+         ram_bytes = net_weight = cpu_weight = -1;
+#endif // !RESOURCE_UNLIMIT
+
          if( context.control.get_mutable_resource_limits_manager().set_account_limits(account, ram_bytes, net_weight, cpu_weight) ) {
             context.trx_context.validate_ram_usage.insert( account );
          }
       }
 
       void get_resource_limits( account_name account, int64_t& ram_bytes, int64_t& net_weight, int64_t& cpu_weight ) {
+#ifndef RESOURCE_UNLIMIT   
          context.control.get_resource_limits_manager().get_account_limits( account, ram_bytes, net_weight, cpu_weight);
+#else
+         ram_bytes = net_weight = cpu_weight = -1;
+#endif // !RESOURCE_UNLIMIT
       }
 
       int64_t set_proposed_producers_common( vector<producer_authority> && producers, bool validate_keys ) {
@@ -1870,6 +1887,7 @@ REGISTER_INTRINSICS(privileged_api,
    (activate_feature,                 void(int64_t)                         )
    (get_resource_limits,              void(int64_t,int,int,int)             )
    (set_resource_limits,              void(int64_t,int64_t,int64_t,int64_t) )
+   (set_gas_price,                    void(int64_t,int64_t) )
    (set_proposed_producers,           int64_t(int,int)                      )
    (set_proposed_producers_ex,        int64_t(int64_t, int, int)            )
    (get_blockchain_parameters_packed, int(int, int)                         )
@@ -2035,48 +2053,6 @@ REGISTER_INJECTED_INTRINSICS(softfloat_api,
       (_eosio_f32_neg,       float(float)           )
       (_eosio_f32_sqrt,      float(float)           )
       (_eosio_f32_ceil,      float(float)           )
-      (_eosio_f32_floor,     float(float)           )
-      (_eosio_f32_trunc,     float(float)           )
-      (_eosio_f32_nearest,   float(float)           )
-      (_eosio_f32_eq,        int(float, float)      )
-      (_eosio_f32_ne,        int(float, float)      )
-      (_eosio_f32_lt,        int(float, float)      )
-      (_eosio_f32_le,        int(float, float)      )
-      (_eosio_f32_gt,        int(float, float)      )
-      (_eosio_f32_ge,        int(float, float)      )
-      (_eosio_f64_add,       double(double, double) )
-      (_eosio_f64_sub,       double(double, double) )
-      (_eosio_f64_mul,       double(double, double) )
-      (_eosio_f64_div,       double(double, double) )
-      (_eosio_f64_min,       double(double, double) )
-      (_eosio_f64_max,       double(double, double) )
-      (_eosio_f64_copysign,  double(double, double) )
-      (_eosio_f64_abs,       double(double)         )
-      (_eosio_f64_neg,       double(double)         )
-      (_eosio_f64_sqrt,      double(double)         )
-      (_eosio_f64_ceil,      double(double)         )
-      (_eosio_f64_floor,     double(double)         )
-      (_eosio_f64_trunc,     double(double)         )
-      (_eosio_f64_nearest,   double(double)         )
-      (_eosio_f64_eq,        int(double, double)    )
-      (_eosio_f64_ne,        int(double, double)    )
-      (_eosio_f64_lt,        int(double, double)    )
-      (_eosio_f64_le,        int(double, double)    )
-      (_eosio_f64_gt,        int(double, double)    )
-      (_eosio_f64_ge,        int(double, double)    )
-      (_eosio_f32_promote,    double(float)         )
-      (_eosio_f64_demote,     float(double)         )
-      (_eosio_f32_trunc_i32s, int(float)            )
-      (_eosio_f64_trunc_i32s, int(double)           )
-      (_eosio_f32_trunc_i32u, int(float)            )
-      (_eosio_f64_trunc_i32u, int(double)           )
-      (_eosio_f32_trunc_i64s, int64_t(float)        )
-      (_eosio_f64_trunc_i64s, int64_t(double)       )
-      (_eosio_f32_trunc_i64u, int64_t(float)        )
-      (_eosio_f64_trunc_i64u, int64_t(double)       )
-      (_eosio_i32_to_f32,     float(int32_t)        )
-      (_eosio_i64_to_f32,     float(int64_t)        )
-      (_eosio_ui32_to_f32,    float(int32_t)        )
       (_eosio_ui64_to_f32,    float(int64_t)        )
       (_eosio_i32_to_f64,     double(int32_t)       )
       (_eosio_i64_to_f64,     double(int64_t)       )

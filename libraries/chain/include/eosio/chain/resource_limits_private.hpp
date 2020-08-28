@@ -139,7 +139,9 @@ namespace eosio { namespace chain { namespace resource_limits {
       int64_t net_weight = -1;
       int64_t cpu_weight = -1;
       int64_t ram_bytes = -1;
-
+#ifdef RESOURCE_UNLIMIT 
+      int64_t gas_price = GAS_PRICE_DEFALT;
+#endif // !RESOURCE_UNLIMIT
    };
 
    struct by_owner;

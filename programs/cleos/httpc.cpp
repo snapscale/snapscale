@@ -18,6 +18,7 @@
 #include <boost/asio/ssl.hpp>
 #include <fc/variant.hpp>
 #include <fc/io/json.hpp>
+
 #include <fc/network/platform_root_ca.hpp>
 #include <eosio/chain/exceptions.hpp>
 #include <eosio/http_plugin/http_plugin.hpp>
@@ -29,7 +30,7 @@
 
 using boost::asio::ip::tcp;
 using namespace eosio::chain;
-namespace eosio { namespace client { namespace http {
+namespace eosio { namespace client { namespace http { 
 
    namespace detail {
       class http_context_impl {
@@ -209,6 +210,12 @@ namespace eosio { namespace client { namespace http {
    for (itr = cp.headers.begin(); itr != cp.headers.end(); itr++) {
       request_stream << *itr << "\r\n";
    }
+   //////////////////////////////////////////////
+   // //QTODO:2. delete token created here
+   // for (const auto& head : cp.headers){
+   //    request_stream << head << "\r\n";
+   // }
+   //////////////////////////////////////////////
    request_stream << "\r\n";
    request_stream << postjson;
 
@@ -239,15 +246,47 @@ namespace eosio { namespace client { namespace http {
          boost::asio::ssl::context ssl_context(boost::asio::ssl::context::sslv23_client);
          fc::add_platform_root_cas_to_context(ssl_context);
 
+         // add some trusted certification authority
+         for (auto itr = cp.https_client_root_certs.begin(); itr != cp.https_client_root_certs.end(); itr++) {
+            boost::system::error_code ec;
+            ssl_context.add_certificate_authority(boost::asio::buffer((*itr).data(), (*itr).size()), ec);
+            FC_ASSERT(!ec, "Failed to add cert: ${msg}", ("msg", ec.message()));
+         }
+
+         if(true){
+            // config self's cert and key on TLS
+            if(cp.https_cert_chain.size())
+               ssl_context.use_certificate_chain_file(cp.https_cert_chain);
+            if(cp.https_key.size())
+               ssl_context.use_private_key_file(cp.https_key, boost::asio::ssl::context::pem);
+         }
+
          boost::asio::ssl::stream<boost::asio::ip::tcp::socket> socket(cp.context->ios, ssl_context);
          SSL_set_tlsext_host_name(socket.native_handle(), url.server.c_str());
          if(cp.verify_cert) {
             socket.set_verify_mode(boost::asio::ssl::verify_peer);
-            socket.set_verify_callback(boost::asio::ssl::rfc2818_verification(url.server));
+            // socket.set_verify_callback(boost::asio::ssl::rfc2818_verification(url.server)); // check domain
+
+            // X509 *cert = SSL_get_peer_certificate(socket.native_handle());
          }
          do_connect(socket.next_layer(), url);
-         socket.handshake(boost::asio::ssl::stream_base::client);
-         re = do_txrx(socket, request, status_code);
+
+         try{
+            socket.handshake(boost::asio::ssl::stream_base::client);
+         } catch ( boost::system::system_error& e ) {
+            FC_THROW( "Https handshake failed because ${reason}", ("reason",e.what() ) );
+         } catch ( ... ) {
+            FC_THROW( "Https handshake failed", ("inner", fc::except_str() ) );
+         }
+
+         try{
+            re = do_txrx(socket, request, status_code);
+         } catch ( boost::system::system_error& e ) {
+            FC_THROW( "Https do_txrx failed because ${reason}", ("reason",e.what() ) );
+         } catch ( ... ) {
+            FC_THROW( "Https do_txrx failed", ("inner", fc::except_str() ) );
+         }
+
          //try and do a clean shutdown; but swallow if this fails (other side could have already gave TCP the ax)
          try {socket.shutdown();} catch(...) {}
       }

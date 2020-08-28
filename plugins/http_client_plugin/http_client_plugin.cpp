@@ -10,6 +10,7 @@ http_client_plugin::~http_client_plugin(){}
 
 void http_client_plugin::set_program_options(options_description&, options_description& cfg) {
    cfg.add_options()
+      // add one trusted certification authority
       ("https-client-root-cert", boost::program_options::value<vector<string>>()->composing()->multitoken(),
        "PEM encoded trusted root certificate (or path to file containing one) used to validate any TLS connections made.  (may specify multiple times)\n")
       ("https-client-validate-peers", boost::program_options::value<bool>()->default_value(true),

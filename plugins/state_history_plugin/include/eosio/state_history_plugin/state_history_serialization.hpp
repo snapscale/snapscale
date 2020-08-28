@@ -614,10 +614,20 @@ datastream<ST>& operator<<(datastream<ST>&                                      
          fc::raw::pack(ds, as_type<uint8_t>(trace.receipt->status.value));
       fc::raw::pack(ds, as_type<uint32_t>(trace.receipt->cpu_usage_us));
       fc::raw::pack(ds, as_type<fc::unsigned_int>(trace.receipt->net_usage_words));
+#ifdef RESOURCE_UNLIMIT
+      fc::raw::pack(ds, as_type<uint32_t>(trace.receipt->gas_usage)); // TODO-Xeniro: gas about history tool
+      fc::raw::pack(ds, as_type<int64_t>(trace.receipt->gas_price));
+      fc::raw::pack(ds, as_type<eosio::chain::transaction_id_type>(trace.receipt->fee_trx_id));
+#endif // !RESOURCE_UNLIMIT
    } else {
       fc::raw::pack(ds, uint8_t(obj.context.first));
       fc::raw::pack(ds, uint32_t(0));
       fc::raw::pack(ds, fc::unsigned_int(0));
+#ifdef RESOURCE_UNLIMIT
+      fc::raw::pack(ds, uint32_t(0));           // TODO-Xeniro: gas about history tool
+      fc::raw::pack(ds, int64_t(0)); 
+      fc::raw::pack(ds, eosio::chain::transaction_id_type());
+#endif // !RESOURCE_UNLIMIT
    }
    fc::raw::pack(ds, as_type<int64_t>(debug_mode ? trace.elapsed.count() : 0));
    fc::raw::pack(ds, as_type<uint64_t>(trace.net_usage));

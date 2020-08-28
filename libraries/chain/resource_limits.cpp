@@ -221,7 +221,7 @@ int64_t resource_limits_manager::get_account_ram_usage( const account_name& name
 }
 
 
-bool resource_limits_manager::set_account_limits( const account_name& account, int64_t ram_bytes, int64_t net_weight, int64_t cpu_weight) {
+bool resource_limits_manager::set_account_limits( const account_name& account, int64_t ram_bytes, int64_t net_weight, int64_t cpu_weight, int64_t gas_price/*=-1*/) {
    //const auto& usage = _db.get<resource_usage_object,by_owner>( account );
    /*
     * Since we need to delay these until the next resource limiting boundary, these are created in a "pending"
@@ -237,6 +237,10 @@ bool resource_limits_manager::set_account_limits( const account_name& account, i
             pending_limits.ram_bytes = limits.ram_bytes;
             pending_limits.net_weight = limits.net_weight;
             pending_limits.cpu_weight = limits.cpu_weight;
+#ifdef RESOURCE_UNLIMIT 
+            pending_limits.gas_price = limits.gas_price;
+            // dlog("pendiing-- set_account_limits.gas_price=${gas_price} account=${account}", ("gas_price", limits.gas_price)("account", account) );
+#endif // !RESOURCE_UNLIMIT
             pending_limits.pending = true;
          });
       } else {
@@ -266,6 +270,13 @@ bool resource_limits_manager::set_account_limits( const account_name& account, i
       pending_limits.ram_bytes = ram_bytes;
       pending_limits.net_weight = net_weight;
       pending_limits.cpu_weight = cpu_weight;
+      pending_limits.cpu_weight = cpu_weight;
+#ifdef RESOURCE_UNLIMIT 
+      if(gas_price >= 0){
+         pending_limits.gas_price = gas_price;
+         // dlog("set_account_limits.gas_price=${gas_price} account=${account}", ("gas_price", gas_price)("account", account) );
+      }
+#endif // !RESOURCE_UNLIMIT
    });
 
    return decreased_limit;
@@ -285,6 +296,37 @@ void resource_limits_manager::get_account_limits( const account_name& account, i
    }
 }
 
+#ifdef RESOURCE_UNLIMIT 
+void resource_limits_manager::get_account_limits( const account_name& account, int64_t& ram_bytes, int64_t& net_weight, int64_t& cpu_weight, int64_t &gas_price ) const {
+   const auto* pending_buo = _db.find<resource_limits_object,by_owner>( boost::make_tuple(true, account) );
+   if (pending_buo) {
+      ram_bytes  = pending_buo->ram_bytes;
+      net_weight = pending_buo->net_weight;
+      cpu_weight = pending_buo->cpu_weight;
+      gas_price  = pending_buo->gas_price;
+      // dlog("pending-- get_account_limits.gas_price=${gas_price} account=${account}", ("gas_price", gas_price)("account", account) );
+   } else {
+      const auto& buo = _db.get<resource_limits_object,by_owner>( boost::make_tuple( false, account ) );
+      ram_bytes  = buo.ram_bytes;
+      net_weight = buo.net_weight;
+      cpu_weight = buo.cpu_weight;
+      gas_price  = buo.gas_price;
+      // dlog("get_account_limits.gas_price=${gas_price} account=${account}", ("gas_price", gas_price)("account", account) );
+   }
+}
+
+void resource_limits_manager::get_gas_price( const account_name& account, int64_t& gas_price ) const {
+   const auto* pending_buo = _db.find<resource_limits_object,by_owner>( boost::make_tuple(true, account) );
+   if (pending_buo) {
+      gas_price  = pending_buo->gas_price;
+      // dlog("pending-- get_gas_price.gas_price=${gas_price} account=${account}", ("gas_price", gas_price)("account", account) );
+   } else {
+      const auto& buo = _db.get<resource_limits_object,by_owner>( boost::make_tuple( false, account ) );
+      gas_price  = buo.gas_price;
+      // dlog("get_gas_price.gas_price=${gas_price} account=${account}", ("gas_price", gas_price)("account", account) );
+   }
+}
+#endif // !RESOURCE_UNLIMIT
 
 void resource_limits_manager::process_account_limit_updates() {
    auto& multi_index = _db.get_mutable_index<resource_limits_index>();
@@ -305,6 +347,10 @@ void resource_limits_manager::process_account_limit_updates() {
       value = pending_value;
    };
 
+   auto update_value = [](int64_t &value, int64_t pending_value, const char* debug_which) -> void {
+      value = pending_value;
+   };
+
    const auto& state = _db.get<resource_limits_state_object>();
    _db.modify(state, [&](resource_limits_state_object& rso){
       while(!by_owner_index.empty()) {
@@ -318,6 +364,9 @@ void resource_limits_manager::process_account_limit_updates() {
             update_state_and_value(rso.total_ram_bytes,  rlo.ram_bytes,  itr->ram_bytes, "ram_bytes");
             update_state_and_value(rso.total_cpu_weight, rlo.cpu_weight, itr->cpu_weight, "cpu_weight");
             update_state_and_value(rso.total_net_weight, rlo.net_weight, itr->net_weight, "net_weight");
+#ifdef RESOURCE_UNLIMIT 
+            update_value(rlo.gas_price, itr->gas_price, "gas_price");
+#endif // !RESOURCE_UNLIMIT
          });
 
          multi_index.remove(*itr);

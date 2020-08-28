@@ -92,6 +92,8 @@ class read_only {
 public:
    static const string KEYi64;
 
+   static account_name mec_acc;
+
    read_only(const controller& db, const fc::microseconds& abi_serializer_max_time)
       : db(db), abi_serializer_max_time(abi_serializer_max_time) {}
 
@@ -110,6 +112,7 @@ public:
       chain::block_id_type    head_block_id;
       fc::time_point          head_block_time;
       account_name            head_block_producer;
+      account_name            mec_acc;
 
       uint64_t                virtual_block_cpu_limit = 0;
       uint64_t                virtual_block_net_limit = 0;
@@ -160,16 +163,18 @@ public:
       int64_t                    ram_quota  = 0;
       int64_t                    net_weight = 0;
       int64_t                    cpu_weight = 0;
-
+#ifdef RESOURCE_UNLIMIT 
+      int64_t                    gas_price = 0;
+#endif // !RESOURCE_UNLIMIT
       account_resource_limit     net_limit;
       account_resource_limit     cpu_limit;
       int64_t                    ram_usage = 0;
 
       vector<permission>         permissions;
 
-      fc::variant                total_resources;
-      fc::variant                self_delegated_bandwidth;
-      fc::variant                refund_request;
+      fc::variant                total_resources;           // user_resources          user_resources_table
+      fc::variant                self_delegated_bandwidth;  // delegated_bandwidth     del_bandwidth_table
+      fc::variant                refund_request;            // refund_request          refunds_table
       fc::variant                voter_info;
       fc::variant                rex_info;
    };
@@ -408,18 +413,18 @@ public:
    /////////////////////////////////////////
    static std::mutex mtx;
    struct crl_iterm {
-      chain::public_key_type public_key;
-      fc::sha256             node_id;
+      fc::sha256   pk_hash;
+      string       public_key;
    };
-   static std::map<chain::public_key_type, crl_iterm> crls;
+   static std::map<fc::sha256, crl_iterm> crls;
    void get_update_crl_list();
 
-   static bool is_in_crl_list(chain::public_key_type pub_key){
+   static bool is_in_crl_list(fc::sha256 pk_hash){
       bool isin = false;
       mtx.lock();
       try{
          if(!crls.empty()){
-            auto key_it = crls.find(pub_key);
+            auto key_it = crls.find(pk_hash);
             if (key_it != crls.end() ){
                isin = true;
             }
@@ -428,7 +433,7 @@ public:
          wlog("Exception in check public key for crl list.");
       }
       mtx.unlock();
-      //elog( "Peer authentication expired.(${k} in crl ${b})",("k",pub_key)("b",isin));
+      //wlog( "Peer authentication expired.(${k} in crl ${b})",("k",pk_hash)("b",isin));
       return isin;
    }
 
@@ -792,7 +797,7 @@ FC_REFLECT( eosio::chain_apis::permission, (perm_name)(parent)(required_auth) )
 FC_REFLECT(eosio::chain_apis::empty, )
 FC_REFLECT(eosio::chain_apis::read_only::get_info_results,
            (server_version)(chain_id)(head_block_num)(last_irreversible_block_num)(last_irreversible_block_id)
-           (head_block_id)(head_block_time)(head_block_producer)
+           (head_block_id)(head_block_time)(head_block_producer)(mec_acc)
            (virtual_block_cpu_limit)(virtual_block_net_limit)(block_cpu_limit)(block_net_limit)
            (server_version_string)(fork_db_head_block_num)(fork_db_head_block_id)(server_full_version_string) )
 FC_REFLECT(eosio::chain_apis::read_only::get_activated_protocol_features_params, (lower_bound)(upper_bound)(limit)(search_by_block_num)(reverse) )
@@ -824,7 +829,7 @@ FC_REFLECT( eosio::chain_apis::read_only::get_scheduled_transactions_result, (tr
 
 FC_REFLECT( eosio::chain_apis::read_only::get_account_results,
             (account_name)(head_block_num)(head_block_time)(privileged)(last_code_update)(created)
-            (core_liquid_balance)(ram_quota)(net_weight)(cpu_weight)(net_limit)(cpu_limit)(ram_usage)(permissions)
+            (core_liquid_balance)(ram_quota)(net_weight)(cpu_weight)(gas_price)(net_limit)(cpu_limit)(ram_usage)(permissions)
             (total_resources)(self_delegated_bandwidth)(refund_request)(voter_info)(rex_info) )
 // @swap code_hash
 FC_REFLECT( eosio::chain_apis::read_only::get_code_results, (account_name)(code_hash)(wast)(wasm)(abi) )

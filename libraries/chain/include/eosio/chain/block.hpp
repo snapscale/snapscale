@@ -21,13 +21,25 @@ namespace eosio { namespace chain {
       transaction_receipt_header():status(hard_fail){}
       explicit transaction_receipt_header( status_enum s ):status(s){}
 
-      friend inline bool operator ==( const transaction_receipt_header& lhs, const transaction_receipt_header& rhs ) {
-         return std::tie(lhs.status, lhs.cpu_usage_us, lhs.net_usage_words) == std::tie(rhs.status, rhs.cpu_usage_us, rhs.net_usage_words);
-      }
-
       fc::enum_type<uint8_t,status_enum>   status;
       uint32_t                             cpu_usage_us = 0; ///< total billed CPU usage (microseconds)
       fc::unsigned_int                     net_usage_words; ///<  total billed NET usage, so we can reconstruct resource state when skipping context free data... hard failures...
+
+#ifndef RESOURCE_UNLIMIT
+      friend inline bool operator ==( const transaction_receipt_header& lhs, const transaction_receipt_header& rhs ) {
+         return std::tie(lhs.status, lhs.cpu_usage_us, lhs.net_usage_words) == std::tie(rhs.status, rhs.cpu_usage_us, rhs.net_usage_words);
+      }
+#else
+      friend inline bool operator ==( const transaction_receipt_header& lhs, const transaction_receipt_header& rhs ) {
+         return std::tie(lhs.status, lhs.cpu_usage_us, lhs.net_usage_words, lhs.gas_usage, lhs.gas_price, lhs.fee_trx_id) == 
+                std::tie(rhs.status, rhs.cpu_usage_us, rhs.net_usage_words, rhs.gas_usage, rhs.gas_price, rhs.fee_trx_id);
+      }
+      // TODO-Xeniro: formula of resource to gas
+      void calculate_gas(int64_t ram_usage){ gas_usage = ram_usage/100 + cpu_usage_us/10 + net_usage_words/100; }
+      uint32_t                             gas_usage = 0;
+      int64_t                              gas_price = 0;
+      transaction_id_type                  fee_trx_id;
+#endif // !RESOURCE_UNLIMIT
    };
 
    struct transaction_receipt : public transaction_receipt_header {
@@ -43,6 +55,11 @@ namespace eosio { namespace chain {
          fc::raw::pack( enc, status );
          fc::raw::pack( enc, cpu_usage_us );
          fc::raw::pack( enc, net_usage_words );
+#ifdef RESOURCE_UNLIMIT
+         fc::raw::pack( enc, gas_usage );
+         fc::raw::pack( enc, gas_price ); 
+         fc::raw::pack( enc, fee_trx_id );        
+#endif // !RESOURCE_UNLIMIT
          if( trx.contains<transaction_id_type>() )
             fc::raw::pack( enc, trx.get<transaction_id_type>() );
          else
@@ -115,7 +132,11 @@ namespace eosio { namespace chain {
 FC_REFLECT_ENUM( eosio::chain::transaction_receipt::status_enum,
                  (executed)(soft_fail)(hard_fail)(delayed)(expired) )
 
+#ifndef RESOURCE_UNLIMIT
 FC_REFLECT(eosio::chain::transaction_receipt_header, (status)(cpu_usage_us)(net_usage_words) )
+#else
+FC_REFLECT(eosio::chain::transaction_receipt_header, (status)(cpu_usage_us)(net_usage_words)(gas_usage)(gas_price)(fee_trx_id) )
+#endif // !RESOURCE_UNLIMIT
 FC_REFLECT_DERIVED(eosio::chain::transaction_receipt, (eosio::chain::transaction_receipt_header), (trx) )
 FC_REFLECT(eosio::chain::additional_block_signatures_extension, (signatures));
 FC_REFLECT_DERIVED(eosio::chain::signed_block, (eosio::chain::signed_block_header), (transactions)(block_extensions) )

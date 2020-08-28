@@ -3,6 +3,10 @@
 
 #include <eosio/chain_plugin/chain_plugin.hpp>
 
+// #ifndef RESOURCE_UNLIMIT
+// #pragma message(PRINT_MACRO(had defind RESOURCE_UNLIMIT))
+// #endif
+
 template <typename T>
 struct history_serial_big_vector_wrapper {
    T obj;

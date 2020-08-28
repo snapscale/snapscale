@@ -162,7 +162,9 @@ namespace eosio {
          boost::optional<tcp::endpoint>  https_listen_endpoint;
          string                   https_cert_chain;
          string                   https_key;
+         set<string>              https_root_certs;
          https_ecdh_curve_t       https_ecdh_curve = SECP384R1;
+         bool                     no_verify = false;
 
          websocket_server_tls_type https_server;
 
@@ -174,10 +176,10 @@ namespace eosio {
          bool                     validate_host;
          set<string>              valid_hosts;
 
-         string root_public_key_str;    ///
-         string league_public_key_str;  ///
-         string league_private_key_str; ///
-         string signature_by_root_str;  ///
+         // string root_public_key_str;    ///
+         // string league_public_key_str;  ///
+         // string league_private_key_str; ///
+         // string signature_by_root_str;  ///
          bool http_check_token = true;
 
          bool host_port_is_valid( const std::string& header_host_port, const string& endpoint_local_host_port ) {
@@ -212,6 +214,19 @@ namespace eosio {
 
                ctx->use_certificate_chain_file(https_cert_chain);
                ctx->use_private_key_file(https_key, asio::ssl::context::pem);
+               
+               if(no_verify==false){
+                  // need to verify client's cert  (server must add verify_fail_if_no_peer_cert)
+                  ctx->set_verify_mode(asio::ssl::verify_peer | asio::ssl::verify_fail_if_no_peer_cert);
+                  // This function is used to load the certificates for one trusted certification authorities from a file.
+                  // ctx->load_verify_file(https_root_cert);
+                  for (const auto &certfile : https_root_certs){
+                     ctx->load_verify_file(certfile);
+                  }
+               }  
+               else {
+                  ctx->set_verify_mode(asio::ssl::verify_none);
+               }
 
                //going for the A+! Do a few more things on the native context to get ECDH in use
 
@@ -303,6 +318,36 @@ namespace eosio {
          template<class T>
          void handle_http_request(typename websocketpp::server<T>::connection_ptr con) {
             try {
+               
+               // constexpr: check when compile
+               if constexpr(std::is_same< T, detail::asio_with_stub_log<websocketpp::transport::asio::tls_socket::endpoint> >::value){
+                  // https check client's pubkey
+                  X509 *cert = SSL_get_peer_certificate(con->get_socket().native_handle()); 
+                  auto * evp_pkey = X509_extract_key(cert); 
+                  std::unique_ptr<BIO, decltype(&BIO_free_all)> output_bio(BIO_new(BIO_s_mem()), BIO_free_all);
+                  PEM_write_bio_PUBKEY(output_bio.get(), evp_pkey);
+                  char* ptr = nullptr;
+                  auto len = BIO_get_mem_data(output_bio.get(), &ptr);
+                  if(len <= 0 || ptr == nullptr) {
+                     // printf("Failed to convert pubkey to pem");
+                     EOS_THROW(chain::http_exception, "Failed to get HTTPS client pubkey");
+                  }
+
+                  auto remote_pubk_hash = fc::sha256();
+                  
+                  std::string res(ptr, len);
+                  printf("https client pub_key: %s\n", res.c_str());
+                  remote_pubk_hash = fc::sha256::hash(res);
+
+
+                  wlog( "Verify Remote publick hash: ${h}",("h",remote_pubk_hash));
+                  if(eosio::chain_apis::read_only::is_in_crl_list(remote_pubk_hash)){
+                     FC_THROW_EXCEPTION( fc::exception, "Your https certificate is in CRL." );
+                  }
+                  ilog( "Verify Remote Publick Hash OK");
+
+               }
+               
                auto& req = con->get_request();
 
                if(!allow_host<T>(req, con))
@@ -332,69 +377,71 @@ namespace eosio {
 
                //////////////////////////////////////////////
                //QTODO:判断是否在keos中
-               if(current_http_plugin_defaults.default_check_token && http_check_token)
-               {
-                  using namespace fc;
-                  using namespace fc::crypto;
+               // if(current_http_plugin_defaults.default_check_token && http_check_token)
+               // {
+               //    using namespace fc;
+               //    using namespace fc::crypto;
 
-                  std::string token = con->get_request_header("Authorization");
-                  const auto deadline = fc::time_point::now() + fc::exception::format_time_limit;
-                  try{
-                     using namespace jwt;
-                     using eosio::chain_apis::read_only;
-                     auto decoded = jwt::decode(token);
-                     auto cli_public_str = decoded.get_payload_claim("public").as_string();
-                     auto cli_signature_str = decoded.get_payload_claim("signature").as_string();
-                     //std::cout << "Decoded: " << decoded.get_payload()   << std::endl;         
+               //    std::string token = con->get_request_header("Authorization");
+               //    const auto deadline = fc::time_point::now() + fc::exception::format_time_limit;
+               //    try{
+               //       using namespace jwt;
+               //       using eosio::chain_apis::read_only;
+               //       auto decoded = jwt::decode(token);
+               //       auto cli_public_str = decoded.get_payload_claim("public").as_string();
+               //       auto cli_signature_str = decoded.get_payload_claim("signature").as_string();
+               //       //std::cout << "Decoded: " << decoded.get_payload()   << std::endl;         
 
-                     auto cli_public = crypto::public_key(cli_public_str);
-                     auto cli_signature = crypto::signature(cli_signature_str);
-                     auto recovered = crypto::public_key(cli_signature, sha256::hash((char *) &(cli_public),sizeof(fc::ecc::public_key_data)), true);
-                     if (recovered != crypto::public_key(root_public_key_str) ) {
-                        FC_THROW_EXCEPTION( fc::exception, "expected: digital signature invalid" );
-                     }
+               //       auto cli_public = crypto::public_key(cli_public_str);
+               //       auto cli_signature = crypto::signature(cli_signature_str);
+               //       auto recovered = crypto::public_key(cli_signature, sha256::hash((char *) &(cli_public),sizeof(fc::ecc::public_key_data)), true);
+               //       if (recovered != crypto::public_key(root_public_key_str) ) {
+               //          FC_THROW_EXCEPTION( fc::exception, "expected: digital signature invalid" );
+               //       }
 
-                     if(eosio::chain_apis::read_only::is_in_crl_list(cli_public)){
-                        FC_THROW_EXCEPTION( fc::exception, "expected: digital signature expired in CRL list" );
-                     }
+               //       auto pk_hash = sha256::hash((char *) &(cli_public),sizeof(fc::ecc::public_key_data));
+               //       if(eosio::chain_apis::read_only::is_in_crl_list(pk_hash)){
+               //          FC_THROW_EXCEPTION( fc::exception, "expected: digital signature expired in CRL list" );
+               //       }
 
-                     auto srv_private_key = crypto::private_key(league_private_key_str);
-                     auto shared_secret = srv_private_key.generate_shared_secret(cli_public);
-                     auto verifier = jwt::verify()
-                        .allow_algorithm(jwt::algorithm::hs256{ shared_secret.str() })
-                        .with_issuer("xst");
+               //       auto srv_private_key = crypto::private_key(league_private_key_str);
+               //       auto shared_secret = srv_private_key.generate_shared_secret(cli_public);
+               //       auto verifier = jwt::verify()
+               //          .allow_algorithm(jwt::algorithm::hs256{ shared_secret.str() })
+               //          .with_issuer("xst");
 
-                     verifier.verify(decoded);
-                     wlog( "Authorization Token Verify OK: ${k}",("k",cli_public_str));
+               //       verifier.verify(decoded);
+               //       wlog( "Authorization Token Verify OK: ${k}",("k",cli_public_str));
                      
-                  } catch(const fc::exception& e) {
-                     elog("Authorization Token Exception FC Exception:\r\n${e}", ("e",e.to_string()));
-                     error_results results{websocketpp::http::status_code::authentication_expectation, 
-                        "Authorization Token FC Exception", 
-                        error_results::error_info(e,verbose_http_errors)};
-                     con->set_body( fc::json::to_string( results, deadline ));
-                     con->set_status( websocketpp::http::status_code::authentication_expectation );
-                     return;
+               //    } catch(const fc::exception& e) {
+               //       elog("Authorization Token Exception FC Exception:\r\n${e}", ("e",e.to_string()));
+               //       error_results results{websocketpp::http::status_code::authentication_expectation, 
+               //          "Authorization Token FC Exception", 
+               //          error_results::error_info(e,verbose_http_errors)};
+               //       con->set_body( fc::json::to_string( results, deadline ));
+               //       con->set_status( websocketpp::http::status_code::authentication_expectation );
+               //       return;
 
-                  } 
-                  catch(const jwt::token_verification_exception& e) {
-                     elog("Authorization Token Exception JWT Exception:\r\n${e}", ("e",e.what()));
-                     error_results results{websocketpp::http::status_code::authentication_expectation, 
-                        "Authorization Token JWT Exception", 
-                        error_results::error_info()};
-                     con->set_body( fc::json::to_string( results, deadline ));
-                     con->set_status( websocketpp::http::status_code::authentication_expectation );
-                     return;
-                  } catch(...) {
-                     elog( "Authorization Token Unknown Exception" );
-                     error_results results{websocketpp::http::status_code::authentication_expectation, 
-                        "Authorization Token Unknown Exception", 
-                        error_results::error_info()};
-                     con->set_body( fc::json::to_string( results, deadline ));
-                     con->set_status( websocketpp::http::status_code::authentication_expectation );
-                     return;
-                  }
-               }
+               //    } 
+               //    catch(const jwt::token_verification_exception& e) {
+               //       elog("Authorization Token Exception JWT Exception:\r\n${e}", ("e",e.what()));
+               //       error_results results{websocketpp::http::status_code::authentication_expectation, 
+               //          "Authorization Token JWT Exception", 
+               //          error_results::error_info()};
+               //       con->set_body( fc::json::to_string( results, deadline ));
+               //       con->set_status( websocketpp::http::status_code::authentication_expectation );
+               //       return;
+               //    } catch(...) {
+               //       elog( "Authorization Token Unknown Exception" );
+               //       error_results results{websocketpp::http::status_code::authentication_expectation, 
+               //          "Authorization Token Unknown Exception", 
+               //          error_results::error_info()};
+               //       con->set_body( fc::json::to_string( results, deadline ));
+               //       con->set_status( websocketpp::http::status_code::authentication_expectation );
+               //       return;
+               //    }
+               // }
+
                //////////////////////////////////////////////
                std::string body = con->get_request_body();
                std::string resource = con->get_uri()->get_resource();
@@ -461,7 +508,7 @@ namespace eosio {
             }
          }
 
-         template<class T>
+         template<class T> // http | https
          void create_server_for_endpoint(const tcp::endpoint& ep, websocketpp::server<detail::asio_with_stub_log<T>>& ws) {
             try {
                ws.clear_access_channels(websocketpp::log::alevel::all);
@@ -522,6 +569,7 @@ namespace eosio {
              "The local IP and port to listen for incoming http connections; leave blank to disable.");
 
       cfg.add_options()
+            // HTTPS
             ("https-server-address", bpo::value<string>(),
              "The local IP and port to listen for incoming https connections; leave blank to disable.")
 
@@ -535,6 +583,13 @@ namespace eosio {
                my->https_ecdh_curve = c;
             })->default_value(SECP384R1),
             "Configure https ECDH curve to use: secp384r1 or prime256v1")
+
+            ("https-root-cert-file", bpo::value<std::vector<string>>()->composing() , // bpo::value<string>()
+            "Filename with https root ca cert in PEM format. Required for self-signed ca, can be specified multiple times")
+
+             ("no-verify", bpo::value<bool>()->default_value(false),
+            "don't verify peer certificate when using HTTPS")
+            // HTTPS end
 
             ("access-control-allow-origin", bpo::value<string>()->notifier([this](const string& v) {
                 my->access_control_allow_origin = v;
@@ -617,7 +672,7 @@ namespace eosio {
             my->unix_endpoint = asio::local::stream_protocol::endpoint(sock_path.string());
          }
 #endif
-
+         // HTTPS
          if( options.count( "https-server-address" ) && options.at( "https-server-address" ).as<string>().length()) {
             if( !options.count( "https-certificate-chain-file" ) ||
                 options.at( "https-certificate-chain-file" ).as<string>().empty()) {
@@ -640,6 +695,14 @@ namespace eosio {
                      ("h", host)( "p", port ));
                my->https_cert_chain = options.at( "https-certificate-chain-file" ).as<string>();
                my->https_key = options.at( "https-private-key-file" ).as<string>();
+
+               if( options.count( "https-root-cert-file" )) {
+                  const auto& https_root_certs = options["https-root-cert-file"].as<vector<string>>();
+                  my->https_root_certs.insert(https_root_certs.begin(), https_root_certs.end());
+               }
+               // my->https_root_cert = options.at( "https-root-cert-file" ).as<string>();
+
+               my->no_verify = options.at( "no-verify" ).as<bool>();
             } catch ( const boost::system::system_error& ec ) {
                elog( "failed to configure https to listen on ${h}:${p} (${m})",
                      ("h", host)( "p", port )( "m", ec.what()));
@@ -661,18 +724,18 @@ namespace eosio {
          my->max_bytes_in_flight = options.at( "http-max-bytes-in-flight-mb" ).as<uint32_t>() * 1024 * 1024;
          my->max_response_time = fc::microseconds( options.at("http-max-response-time-ms").as<uint32_t>() * 1000 );
 
-         if( options.count( "root-public-key" ) ) {
-            my->root_public_key_str = options.at( "root-public-key" ).as<string>();
-         }
-         if( options.count( "league-public-key" ) ) {
-            my->league_public_key_str = options.at( "league-public-key" ).as<string>();
-         }
-         if( options.count( "league-private-key" ) ) {
-            my->league_private_key_str = options.at( "league-private-key" ).as<string>();
-         }
-         if( options.count( "signature-by-root" ) ) {
-            my->signature_by_root_str = options.at( "signature-by-root" ).as<string>();
-         }
+         // if( options.count( "root-public-key" ) ) {
+         //    my->root_public_key_str = options.at( "root-public-key" ).as<string>();
+         // }
+         // if( options.count( "league-public-key" ) ) {
+         //    my->league_public_key_str = options.at( "league-public-key" ).as<string>();
+         // }
+         // if( options.count( "league-private-key" ) ) {
+         //    my->league_private_key_str = options.at( "league-private-key" ).as<string>();
+         // }
+         // if( options.count( "signature-by-root" ) ) {
+         //    my->signature_by_root_str = options.at( "signature-by-root" ).as<string>();
+         // }
          if( options.count( "http-check-token" ) ) {
             my->http_check_token = options.at( "http-check-token" ).as<bool>();
          }
@@ -731,6 +794,7 @@ namespace eosio {
       }
 #endif
 
+      // HTTPS
       if(my->https_listen_endpoint) {
          try {
             my->create_server_for_endpoint(*my->https_listen_endpoint, my->https_server);

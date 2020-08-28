@@ -229,6 +229,10 @@
       "base": "transaction_header",
       "fields": [
         {
+          "name": "mex_acc",
+          "type": "name"
+        },
+        {
           "name": "context_free_actions",
           "type": "action[]"
         },

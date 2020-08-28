@@ -23,6 +23,10 @@ namespace eosio {
    // Allow for future extentions as well, hence 384.
    constexpr size_t max_p2p_address_length = 253 + 6;
    constexpr size_t max_handshake_str_length = 384;
+   // struct crl_iterm {
+   //    chain::public_key_type public_key;
+   //    fc::sha256             node_id;
+   // };
 
    struct handshake_message {
       uint16_t                   network_version = 0; ///< incremental value above a computed base

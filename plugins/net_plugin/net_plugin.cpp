@@ -27,6 +27,10 @@
 #include <atomic>
 #include <shared_mutex>
 
+#include <boost/bind.hpp>
+#include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
+
 using namespace eosio::chain::plugin_interface;
 
 namespace eosio {
@@ -221,10 +225,16 @@ namespace eosio {
       vector<chain::public_key_type>        allowed_peers; ///< peer keys allowed to connect
       std::map<chain::public_key_type,
                chain::private_key_type>     private_keys; ///< overlapping with producer keys, also authenticating non-producing nodes
-      chain::public_key_type           root_public_key; ///
-      chain::public_key_type           league_public_key;  ///
-      chain::private_key_type          league_private_key; ///
-      chain::signature_type            signature_by_root;   ///
+      // chain::public_key_type           root_public_key; ///
+      // chain::public_key_type           league_public_key;  ///
+      // chain::private_key_type          league_private_key; ///
+      // chain::signature_type            signature_by_root;   ///
+      // for tls
+      bool tls_enable;
+      string tls_cert_chain;
+      string tls_priv_key;
+      string tls_root_cert;
+      boost::asio::ssl::context tlsctx{boost::asio::ssl::context::sslv23};
 
       enum possible_connections : char {
          None = 0,
@@ -569,7 +579,9 @@ namespace eosio {
 
    public:
       boost::asio::io_context::strand           strand;
-      std::shared_ptr<tcp::socket>              socket; // only accessed through strand after construction
+      std::shared_ptr<tcp::socket>              socket_t; // only accessed through strand after construction
+      std::shared_ptr<boost::asio::ssl::stream<tcp::socket>> socket_s;
+
 
       fc::message_buffer<1024*1024>    pending_message_buffer;
       std::atomic<std::size_t>         outstanding_read_bytes{0}; // accessed only from strand threads
@@ -600,6 +612,7 @@ namespace eosio {
       fc::sha256                  conn_node_id;
       string                      remote_endpoint_ip;
       string                      remote_endpoint_port;
+      fc::sha256                  remote_pubk_hash;
       string                      local_endpoint_ip;
       string                      local_endpoint_port;
 
@@ -815,32 +828,46 @@ namespace eosio {
    connection::connection( string endpoint )
       : peer_addr( endpoint ),
         strand( my_impl->thread_pool->get_executor() ),
-        socket( new tcp::socket( my_impl->thread_pool->get_executor() ) ),
+        socket_t( new tcp::socket( my_impl->thread_pool->get_executor() ) ),
         connection_id( ++my_impl->current_connection_id ),
         response_expected_timer( my_impl->thread_pool->get_executor() ),
         last_handshake_recv(),
-        last_handshake_sent()
+        last_handshake_sent(),
+        remote_pubk_hash(fc::sha256())
    {
       fc_ilog( logger, "creating connection to ${n}", ("n", endpoint) );
+      std::shared_ptr<boost::asio::ssl::stream<tcp::socket>> _sock(new boost::asio::ssl::stream<tcp::socket>(my_impl->thread_pool->get_executor(), my_impl->tlsctx));
+      socket_s = _sock;
    }
 
    connection::connection()
       : peer_addr(),
         strand( my_impl->thread_pool->get_executor() ),
-        socket( new tcp::socket( my_impl->thread_pool->get_executor() ) ),
+        socket_t( new tcp::socket( my_impl->thread_pool->get_executor() ) ),
         connection_id( ++my_impl->current_connection_id ),
         response_expected_timer( my_impl->thread_pool->get_executor() ),
         last_handshake_recv(),
-        last_handshake_sent()
+        last_handshake_sent(),
+        remote_pubk_hash(fc::sha256())
    {
       fc_dlog( logger, "new connection object created" );
+      std::shared_ptr<boost::asio::ssl::stream<tcp::socket>> _sock(new boost::asio::ssl::stream<tcp::socket>(my_impl->thread_pool->get_executor(), my_impl->tlsctx));
+      socket_s = _sock;
    }
 
    void connection::update_endpoints() {
       boost::system::error_code ec;
       boost::system::error_code ec2;
-      auto rep = socket->remote_endpoint(ec);
-      auto lep = socket->local_endpoint(ec2);
+      boost::asio::ip::tcp::endpoint rep;
+      boost::asio::ip::tcp::endpoint lep;
+      if(my_impl->tls_enable){
+         rep = socket_s->lowest_layer().remote_endpoint(ec);
+         lep = socket_s->lowest_layer().local_endpoint(ec2);
+      } else {
+         rep = socket_t->remote_endpoint(ec);
+         lep = socket_t->local_endpoint(ec2);
+      }
+
       std::lock_guard<std::mutex> g_conn( conn_mtx );
       remote_endpoint_ip = ec ? unknown : rep.address().to_string();
       remote_endpoint_port = ec ? unknown : std::to_string(rep.port());
@@ -889,7 +916,12 @@ namespace eosio {
       update_endpoints();
       boost::asio::ip::tcp::no_delay nodelay( true );
       boost::system::error_code ec;
-      socket->set_option( nodelay, ec );
+
+      if(my_impl->tls_enable){
+         socket_s->lowest_layer().set_option( nodelay, ec );
+      } else {
+         socket_t->set_option( nodelay, ec );
+      }
       if( ec ) {
          fc_elog( logger, "connection failed (set_option) ${peer}: ${e1}", ("peer", peer_name())( "e1", ec.message() ) );
          close();
@@ -923,11 +955,22 @@ namespace eosio {
    void connection::_close( connection* self, bool reconnect, bool shutdown ) {
       self->socket_open = false;
       boost::system::error_code ec;
-      if( self->socket->is_open() ) {
-         self->socket->shutdown( tcp::socket::shutdown_both, ec );
-         self->socket->close( ec );
+      if(my_impl->tls_enable){
+          if( self->socket_s->lowest_layer().is_open() ) {
+             self->socket_s->lowest_layer().shutdown( tcp::socket::shutdown_both, ec );
+             self->socket_s->lowest_layer().close( ec );
+          }
+          self->socket_s.reset( new boost::asio::ssl::stream<tcp::socket>(my_impl->thread_pool->get_executor(), my_impl->tlsctx) );
+      } else {
+          if( self->socket_t->is_open() ) {
+             self->socket_t->shutdown( tcp::socket::shutdown_both, ec );
+             self->socket_t->close( ec );
+          }
+          self->socket_t.reset( new tcp::socket( my_impl->thread_pool->get_executor() ) );
       }
-      self->socket.reset( new tcp::socket( my_impl->thread_pool->get_executor() ) );
+      self->remote_pubk_hash = fc::sha256();
+
+
       self->flush_queues();
       self->connecting = false;
       self->syncing = false;
@@ -1104,42 +1147,83 @@ namespace eosio {
       std::vector<boost::asio::const_buffer> bufs;
       buffer_queue.fill_out_buffer( bufs );
 
-      strand.post( [c{std::move(c)}, bufs{std::move(bufs)}]() {
-         boost::asio::async_write( *c->socket, bufs,
-            boost::asio::bind_executor( c->strand, [c, socket=c->socket]( boost::system::error_code ec, std::size_t w ) {
-            try {
-               c->buffer_queue.clear_out_queue();
-               // May have closed connection and cleared buffer_queue
-               if( !c->socket_is_open() || socket != c->socket ) {
-                  fc_ilog( logger, "async write socket ${r} before callback: ${p}",
-                           ("r", c->socket_is_open() ? "changed" : "closed")("p", c->peer_name()) );
-                  c->close();
-                  return;
-               }
-
-               if( ec ) {
-                  if( ec.value() != boost::asio::error::eof ) {
-                     fc_elog( logger, "Error sending to peer ${p}: ${i}", ("p", c->peer_name())( "i", ec.message() ) );
-                  } else {
-                     fc_wlog( logger, "connection closure detected on write to ${p}", ("p", c->peer_name()) );
+      if(my_impl->tls_enable){
+         strand.post( [c{std::move(c)}, bufs{std::move(bufs)}]() {
+            boost::asio::async_write( *c->socket_s, bufs,
+               boost::asio::bind_executor( c->strand, [c, socket=c->socket_s]( boost::system::error_code ec, std::size_t w ) {
+               try {
+                  c->buffer_queue.clear_out_queue();
+                  // May have closed connection and cleared buffer_queue
+                  if( !c->socket_is_open() || socket != c->socket_s ) {
+                     fc_ilog( logger, "async write socket ${r} before callback: ${p}",
+                              ("r", c->socket_is_open() ? "changed" : "closed")("p", c->peer_name()) );
+                     c->close();
+                     return;
                   }
-                  c->close();
-                  return;
+
+                  if( ec ) {
+                     if( ec.value() != boost::asio::error::eof ) {
+                        fc_elog( logger, "Error sending to peer ${p}: ${i}", ("p", c->peer_name())( "i", ec.message() ) );
+                     } else {
+                        fc_wlog( logger, "connection closure detected on write to ${p}", ("p", c->peer_name()) );
+                     }
+                     c->close();
+                     return;
+                  }
+
+                  c->buffer_queue.out_callback( ec, w );
+
+                  c->enqueue_sync_block();
+                  c->do_queue_write();
+               } catch( const std::exception& ex ) {
+                  fc_elog( logger, "Exception in do_queue_write to ${p} ${s}", ("p", c->peer_name())( "s", ex.what() ) );
+               } catch( const fc::exception& ex ) {
+                  fc_elog( logger, "Exception in do_queue_write to ${p} ${s}", ("p", c->peer_name())( "s", ex.to_string() ) );
+               } catch( ... ) {
+                  fc_elog( logger, "Exception in do_queue_write to ${p}", ("p", c->peer_name()) );
                }
+            }));
+         });         
+      } else {
+         strand.post( [c{std::move(c)}, bufs{std::move(bufs)}]() {
+            boost::asio::async_write( *c->socket_t, bufs,
+               boost::asio::bind_executor( c->strand, [c, socket=c->socket_t]( boost::system::error_code ec, std::size_t w ) {
+               try {
+                  c->buffer_queue.clear_out_queue();
+                  // May have closed connection and cleared buffer_queue
+                  if( !c->socket_is_open() || socket != c->socket_t ) {
+                     fc_ilog( logger, "async write socket ${r} before callback: ${p}",
+                              ("r", c->socket_is_open() ? "changed" : "closed")("p", c->peer_name()) );
+                     c->close();
+                     return;
+                  }
 
-               c->buffer_queue.out_callback( ec, w );
+                  if( ec ) {
+                     if( ec.value() != boost::asio::error::eof ) {
+                        fc_elog( logger, "Error sending to peer ${p}: ${i}", ("p", c->peer_name())( "i", ec.message() ) );
+                     } else {
+                        fc_wlog( logger, "connection closure detected on write to ${p}", ("p", c->peer_name()) );
+                     }
+                     c->close();
+                     return;
+                  }
 
-               c->enqueue_sync_block();
-               c->do_queue_write();
-            } catch( const std::exception& ex ) {
-               fc_elog( logger, "Exception in do_queue_write to ${p} ${s}", ("p", c->peer_name())( "s", ex.what() ) );
-            } catch( const fc::exception& ex ) {
-               fc_elog( logger, "Exception in do_queue_write to ${p} ${s}", ("p", c->peer_name())( "s", ex.to_string() ) );
-            } catch( ... ) {
-               fc_elog( logger, "Exception in do_queue_write to ${p}", ("p", c->peer_name()) );
-            }
-         }));
-      });
+                  c->buffer_queue.out_callback( ec, w );
+
+                  c->enqueue_sync_block();
+                  c->do_queue_write();
+               } catch( const std::exception& ex ) {
+                  fc_elog( logger, "Exception in do_queue_write to ${p} ${s}", ("p", c->peer_name())( "s", ex.what() ) );
+               } catch( const fc::exception& ex ) {
+                  fc_elog( logger, "Exception in do_queue_write to ${p} ${s}", ("p", c->peer_name())( "s", ex.to_string() ) );
+               } catch( ... ) {
+                  fc_elog( logger, "Exception in do_queue_write to ${p}", ("p", c->peer_name()) );
+               }
+            }));
+         });         
+      }
+
+
    }
 
    void connection::cancel_sync(go_away_reason reason) {
@@ -2165,86 +2249,243 @@ namespace eosio {
       connecting = true;
       pending_message_buffer.reset();
       buffer_queue.clear_out_queue();
-      boost::asio::async_connect( *socket, endpoints,
-         boost::asio::bind_executor( strand,
-               [resolver, c = shared_from_this(), socket=socket]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
-            if( !err && socket->is_open() && socket == c->socket ) {
-               if( c->start_session() ) {
-                  c->send_handshake();
-               }
-            } else {
-               fc_elog( logger, "connection failed to ${peer}: ${error}", ("peer", c->peer_name())( "error", err.message()));
-               c->close( false );
-            }
-      } ) );
+
+      if(my_impl->tls_enable){
+          boost::asio::async_connect( socket_s->lowest_layer(), endpoints,
+             boost::asio::bind_executor( strand,
+                   [resolver, c = shared_from_this(), socket=socket_s]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
+                if( !err && socket->lowest_layer().is_open() && socket == c->socket_s ) {
+                   //TOTO need tls handshake client
+                   try {
+                      socket->handshake(boost::asio::ssl::stream_base::client);
+                      ilog("client tls handshake ok");
+                        X509 *cert = SSL_get_peer_certificate(socket->native_handle()); 
+                        auto * evp_pkey = X509_extract_key(cert); 
+                        std::unique_ptr<BIO, decltype(&BIO_free_all)> output_bio(BIO_new(BIO_s_mem()), BIO_free_all);
+                        PEM_write_bio_PUBKEY(output_bio.get(), evp_pkey);
+                        char* ptr = nullptr;
+                        auto len = BIO_get_mem_data(output_bio.get(), &ptr);
+                        if(len <= 0 || ptr == nullptr) {
+                           elog( "client failed to get remote pubkey");
+                           FC_THROW_EXCEPTION( fc::exception, "client failed to get remote pubkey" );
+                        }
+
+                        std::string pub_key_str(ptr, len);
+                        wlog("remote public key is ${k}",("k",pub_key_str));
+                        auto remote_pubk_hash = fc::sha256::hash(pub_key_str); 
+                        wlog( "Verify Remote publick hash: ${h}",("h",remote_pubk_hash));
+                        if(eosio::chain_apis::read_only::is_in_crl_list(remote_pubk_hash)){
+                           elog( "Verify Remote Publick Hash NOT OK");
+                           FC_THROW_EXCEPTION( fc::exception, "client check remote public key expired in CRL list" );
+                        }
+                        ilog( "Verify Remote Publick Hash OK");
+
+                      if( c->start_session() ) {
+                         c->send_handshake();
+                      }
+
+                   } catch(boost::system::error_code &ec){
+                      elog("client handshake error:${e}",("e", ec.message() ));
+                      c->close( false );
+                   } catch(...) {
+                      elog("client tls handshake error: unknown");
+                      c->close( false );
+                   }
+                } else {
+                   fc_elog( logger, "connection failed to ${peer}: ${error}", ("peer", c->peer_name())( "error", err.message()));
+                   c->close( false );
+                }
+          } ) );
+      } else {
+          boost::asio::async_connect( *socket_t, endpoints,
+             boost::asio::bind_executor( strand,
+                   [resolver, c = shared_from_this(), socket=socket_t]( const boost::system::error_code& err, const tcp::endpoint& endpoint ) {
+                if( !err && socket->is_open() && socket == c->socket_t ) {
+                   if( c->start_session() ) {
+                      c->send_handshake();
+                   }
+                } else {
+                   fc_elog( logger, "connection failed to ${peer}: ${error}", ("peer", c->peer_name())( "error", err.message()));
+                   c->close( false );
+                }
+          } ) );
+      }
+
    }
 
    void net_plugin_impl::start_listen_loop() {
       connection_ptr new_connection = std::make_shared<connection>();
       new_connection->connecting = true;
-      new_connection->strand.post( [this, new_connection = std::move( new_connection )](){
-         acceptor->async_accept( *new_connection->socket,
-            boost::asio::bind_executor( new_connection->strand, [new_connection, socket=new_connection->socket, this]( boost::system::error_code ec ) {
-            if( !ec ) {
-               uint32_t visitors = 0;
-               uint32_t from_addr = 0;
-               boost::system::error_code rec;
-               const auto& paddr_add = socket->remote_endpoint( rec ).address();
-               string paddr_str;
-               if( rec ) {
-                  fc_elog( logger, "Error getting remote endpoint: ${m}", ("m", rec.message()));
-               } else {
-                  paddr_str = paddr_add.to_string();
-                  for_each_connection( [&visitors, &from_addr, &paddr_str]( auto& conn ) {
-                     if( conn->socket_is_open()) {
-                        if( conn->peer_address().empty()) {
-                           ++visitors;
-                           std::lock_guard<std::mutex> g_conn( conn->conn_mtx );
-                           if( paddr_str == conn->remote_endpoint_ip ) {
-                              ++from_addr;
-                           }
-                        }
-                     }
-                     return true;
-                  } );
-                  if( from_addr < max_nodes_per_host && (max_client_count == 0 || visitors < max_client_count)) {
-                     fc_ilog( logger, "Accepted new connection: " + paddr_str );
-                     if( new_connection->start_session()) {
-                        std::lock_guard<std::shared_mutex> g_unique( connections_mtx );
-                        connections.insert( new_connection );
-                     }
 
-                  } else {
-                     if( from_addr >= max_nodes_per_host ) {
-                        fc_dlog( logger, "Number of connections (${n}) from ${ra} exceeds limit ${l}",
-                                 ("n", from_addr + 1)( "ra", paddr_str )( "l", max_nodes_per_host ));
-                     } else {
-                        fc_dlog( logger, "max_client_count ${m} exceeded", ("m", max_client_count));
-                     }
-                     // new_connection never added to connections and start_session not called, lifetime will end
-                     boost::system::error_code ec;
-                     socket->shutdown( tcp::socket::shutdown_both, ec );
-                     socket->close( ec );
-                  }
-               }
-            } else {
-               fc_elog( logger, "Error accepting connection: ${m}", ("m", ec.message()));
-               // For the listed error codes below, recall start_listen_loop()
-               switch (ec.value()) {
-                  case ECONNABORTED:
-                  case EMFILE:
-                  case ENFILE:
-                  case ENOBUFS:
-                  case ENOMEM:
-                  case EPROTO:
-                     break;
-                  default:
-                     return;
-               }
-            }
-            start_listen_loop();
-         }));
-      } );
+      if(my_impl->tls_enable){
+          new_connection->strand.post( [this, new_connection = std::move( new_connection )](){
+             acceptor->async_accept( new_connection->socket_s->lowest_layer(),
+                boost::asio::bind_executor( new_connection->strand, [new_connection, socket=new_connection->socket_s, this]( boost::system::error_code ec ) {
+                if( !ec ) {
+                   uint32_t visitors = 0;
+                   uint32_t from_addr = 0;
+                   boost::system::error_code rec;
+                   const auto& paddr_add = socket->lowest_layer().remote_endpoint( rec ).address();
+                   string paddr_str;
+                   if( rec ) {
+                      fc_elog( logger, "Error getting remote endpoint: ${m}", ("m", rec.message()));
+                   } else {
+
+                      try {
+                         socket->handshake(boost::asio::ssl::stream_base::server);
+                         ilog("server tls handshake ok");
+
+                        X509 *cert = SSL_get_peer_certificate(socket->native_handle()); 
+                        auto * evp_pkey = X509_extract_key(cert); 
+                        std::unique_ptr<BIO, decltype(&BIO_free_all)> output_bio(BIO_new(BIO_s_mem()), BIO_free_all);
+                        PEM_write_bio_PUBKEY(output_bio.get(), evp_pkey);
+                        char* ptr = nullptr;
+                        auto len = BIO_get_mem_data(output_bio.get(), &ptr);
+                        if(len <= 0 || ptr == nullptr) {
+                           elog( "Failed to get remote pubkey");
+                           FC_THROW_EXCEPTION( fc::exception,
+                                      "Failed to get remote pubkey.");
+                        }
+
+                        std::string pub_key_str(ptr, len);
+                        wlog("remote public key is ${k}",("k",pub_key_str));
+                        auto remote_pubk_hash = fc::sha256::hash(pub_key_str); 
+                        wlog( "Verify Remote publick hash: ${h}",("h",remote_pubk_hash));
+                        if(eosio::chain_apis::read_only::is_in_crl_list(remote_pubk_hash)){
+                           elog( "Verify Remote Publick Hash NOT OK");
+                           FC_THROW_EXCEPTION( fc::exception,
+                                      "remote public key expired in CRL list.");
+                        }
+                        ilog( "Verify Remote Publick Hash OK");
+
+
+                         paddr_str = paddr_add.to_string();
+                         for_each_connection( [&visitors, &from_addr, &paddr_str]( auto& conn ) {
+                            if( conn->socket_is_open()) {
+                               if( conn->peer_address().empty()) {
+                                  ++visitors;
+                                  std::lock_guard<std::mutex> g_conn( conn->conn_mtx );
+                                  if( paddr_str == conn->remote_endpoint_ip ) {
+                                     ++from_addr;
+                                  }
+                               }
+                            }
+                            return true;
+                         } );
+                         if( from_addr < max_nodes_per_host && (max_client_count == 0 || visitors < max_client_count)) {
+                            fc_ilog( logger, "Accepted new connection: " + paddr_str );
+                            if( new_connection->start_session()) {
+                               std::lock_guard<std::shared_mutex> g_unique( connections_mtx );
+                               connections.insert( new_connection );
+                            }
+
+                         } else {
+                            if( from_addr >= max_nodes_per_host ) {
+                               fc_dlog( logger, "Number of connections (${n}) from ${ra} exceeds limit ${l}",
+                                        ("n", from_addr + 1)( "ra", paddr_str )( "l", max_nodes_per_host ));
+                            } else {
+                               fc_dlog( logger, "max_client_count ${m} exceeded", ("m", max_client_count));
+                            }
+                            // new_connection never added to connections and start_session not called, lifetime will end
+                            boost::system::error_code e;
+                            boost::asio::detail::throw_error(e, "Reach the limit");
+                         }
+
+                      } catch(boost::system::error_code &ec){
+                         elog("server handshake error:${e}",("e", ec.message() ));
+                         socket->lowest_layer().shutdown( tcp::socket::shutdown_both, ec );
+                         socket->lowest_layer().close( ec );
+                      } catch(...) {
+                         elog("server tls handshake error");
+                         boost::system::error_code ec;
+                         socket->lowest_layer().shutdown( tcp::socket::shutdown_both, ec );
+                         socket->lowest_layer().close( ec );
+                      }
+                   }
+                } else {
+                   fc_elog( logger, "Error accepting connection: ${m}", ("m", ec.message()));
+                   // For the listed error codes below, recall start_listen_loop()
+                   switch (ec.value()) {
+                      case ECONNABORTED:
+                      case EMFILE:
+                      case ENFILE:
+                      case ENOBUFS:
+                      case ENOMEM:
+                      case EPROTO:
+                         break;
+                      default:
+                         return;
+                   }
+                }
+                start_listen_loop();
+             }));
+          } );
+      } else {
+          new_connection->strand.post( [this, new_connection = std::move( new_connection )](){
+             acceptor->async_accept( *new_connection->socket_t,
+                boost::asio::bind_executor( new_connection->strand, [new_connection, socket=new_connection->socket_t, this]( boost::system::error_code ec ) {
+                if( !ec ) {
+                   uint32_t visitors = 0;
+                   uint32_t from_addr = 0;
+                   boost::system::error_code rec;
+                   const auto& paddr_add = socket->remote_endpoint( rec ).address();
+                   string paddr_str;
+                   if( rec ) {
+                      fc_elog( logger, "Error getting remote endpoint: ${m}", ("m", rec.message()));
+                   } else {
+                      paddr_str = paddr_add.to_string();
+                      for_each_connection( [&visitors, &from_addr, &paddr_str]( auto& conn ) {
+                         if( conn->socket_is_open()) {
+                            if( conn->peer_address().empty()) {
+                               ++visitors;
+                               std::lock_guard<std::mutex> g_conn( conn->conn_mtx );
+                               if( paddr_str == conn->remote_endpoint_ip ) {
+                                  ++from_addr;
+                               }
+                            }
+                         }
+                         return true;
+                      } );
+                      if( from_addr < max_nodes_per_host && (max_client_count == 0 || visitors < max_client_count)) {
+                         fc_ilog( logger, "Accepted new connection: " + paddr_str );
+                         if( new_connection->start_session()) {
+                            std::lock_guard<std::shared_mutex> g_unique( connections_mtx );
+                            connections.insert( new_connection );
+                         }
+
+                      } else {
+                         if( from_addr >= max_nodes_per_host ) {
+                            fc_dlog( logger, "Number of connections (${n}) from ${ra} exceeds limit ${l}",
+                                     ("n", from_addr + 1)( "ra", paddr_str )( "l", max_nodes_per_host ));
+                         } else {
+                            fc_dlog( logger, "max_client_count ${m} exceeded", ("m", max_client_count));
+                         }
+                         // new_connection never added to connections and start_session not called, lifetime will end
+                         boost::system::error_code ec;
+                         socket->shutdown( tcp::socket::shutdown_both, ec );
+                         socket->close( ec );
+                      }
+                   }
+                } else {
+                   fc_elog( logger, "Error accepting connection: ${m}", ("m", ec.message()));
+                   // For the listed error codes below, recall start_listen_loop()
+                   switch (ec.value()) {
+                      case ECONNABORTED:
+                      case EMFILE:
+                      case ENFILE:
+                      case ENOBUFS:
+                      case ENOMEM:
+                      case EPROTO:
+                         break;
+                      default:
+                         return;
+                   }
+                }
+                start_listen_loop();
+             }));
+          } );
+      }
+
    }
 
    // only called from strand thread
@@ -2259,7 +2500,13 @@ namespace eosio {
             std::size_t socket_read_watermark = std::min<std::size_t>(minimum_read, max_socket_read_watermark);
             boost::asio::socket_base::receive_low_watermark read_watermark_opt(socket_read_watermark);
             boost::system::error_code ec;
-            socket->set_option( read_watermark_opt, ec );
+
+            if(my_impl->tls_enable){
+                socket_s->lowest_layer().set_option( read_watermark_opt, ec );
+            } else {
+                socket_t->set_option( read_watermark_opt, ec );
+            }
+
             if( ec ) {
                fc_elog( logger, "unable to set read watermark ${peer}: ${e1}", ("peer", peer_name())( "e1", ec.message() ) );
             }
@@ -2280,87 +2527,169 @@ namespace eosio {
             close( false );
             return;
          }
+         if(my_impl->tls_enable){
+            boost::asio::async_read( *socket_s,
+               pending_message_buffer.get_buffer_sequence_for_boost_async_read(), completion_handler,
+               boost::asio::bind_executor( strand,
+               [conn = shared_from_this(), socket=socket_s]( boost::system::error_code ec, std::size_t bytes_transferred ) {
+                  // may have closed connection and cleared pending_message_buffer
+                  if( !conn->socket_is_open() || socket != conn->socket_s ) return;
 
-         boost::asio::async_read( *socket,
-            pending_message_buffer.get_buffer_sequence_for_boost_async_read(), completion_handler,
-            boost::asio::bind_executor( strand,
-              [conn = shared_from_this(), socket=socket]( boost::system::error_code ec, std::size_t bytes_transferred ) {
-               // may have closed connection and cleared pending_message_buffer
-               if( !conn->socket_is_open() || socket != conn->socket ) return;
+                  bool close_connection = false;
+                  try {
+                     if( !ec ) {
+                        if (bytes_transferred > conn->pending_message_buffer.bytes_to_write()) {
+                           fc_elog( logger,"async_read_some callback: bytes_transfered = ${bt}, buffer.bytes_to_write = ${btw}",
+                                    ("bt",bytes_transferred)("btw",conn->pending_message_buffer.bytes_to_write()) );
+                        }
+                        EOS_ASSERT(bytes_transferred <= conn->pending_message_buffer.bytes_to_write(), plugin_exception, "");
+                        conn->pending_message_buffer.advance_write_ptr(bytes_transferred);
+                        while (conn->pending_message_buffer.bytes_to_read() > 0) {
+                           uint32_t bytes_in_buffer = conn->pending_message_buffer.bytes_to_read();
 
-               bool close_connection = false;
-               try {
-                  if( !ec ) {
-                     if (bytes_transferred > conn->pending_message_buffer.bytes_to_write()) {
-                        fc_elog( logger,"async_read_some callback: bytes_transfered = ${bt}, buffer.bytes_to_write = ${btw}",
-                                 ("bt",bytes_transferred)("btw",conn->pending_message_buffer.bytes_to_write()) );
-                     }
-                     EOS_ASSERT(bytes_transferred <= conn->pending_message_buffer.bytes_to_write(), plugin_exception, "");
-                     conn->pending_message_buffer.advance_write_ptr(bytes_transferred);
-                     while (conn->pending_message_buffer.bytes_to_read() > 0) {
-                        uint32_t bytes_in_buffer = conn->pending_message_buffer.bytes_to_read();
-
-                        if (bytes_in_buffer < message_header_size) {
-                           conn->outstanding_read_bytes = message_header_size - bytes_in_buffer;
-                           break;
-                        } else {
-                           uint32_t message_length;
-                           auto index = conn->pending_message_buffer.read_index();
-                           conn->pending_message_buffer.peek(&message_length, sizeof(message_length), index);
-                           if(message_length > def_send_buffer_size*2 || message_length == 0) {
-                              fc_elog( logger,"incoming message length unexpected (${i})", ("i", message_length) );
-                              close_connection = true;
+                           if (bytes_in_buffer < message_header_size) {
+                              conn->outstanding_read_bytes = message_header_size - bytes_in_buffer;
                               break;
-                           }
-
-                           auto total_message_bytes = message_length + message_header_size;
-
-                           if (bytes_in_buffer >= total_message_bytes) {
-                              conn->pending_message_buffer.advance_read_ptr(message_header_size);
-                              conn->consecutive_immediate_connection_close = 0;
-                              if (!conn->process_next_message(message_length)) {
-                                 return;
-                              }
                            } else {
-                              auto outstanding_message_bytes = total_message_bytes - bytes_in_buffer;
-                              auto available_buffer_bytes = conn->pending_message_buffer.bytes_to_write();
-                              if (outstanding_message_bytes > available_buffer_bytes) {
-                                 conn->pending_message_buffer.add_space( outstanding_message_bytes - available_buffer_bytes );
+                              uint32_t message_length;
+                              auto index = conn->pending_message_buffer.read_index();
+                              conn->pending_message_buffer.peek(&message_length, sizeof(message_length), index);
+                              if(message_length > def_send_buffer_size*2 || message_length == 0) {
+                                 fc_elog( logger,"incoming message length unexpected (${i})", ("i", message_length) );
+                                 close_connection = true;
+                                 break;
                               }
 
-                              conn->outstanding_read_bytes = outstanding_message_bytes;
-                              break;
+                              auto total_message_bytes = message_length + message_header_size;
+
+                              if (bytes_in_buffer >= total_message_bytes) {
+                                 conn->pending_message_buffer.advance_read_ptr(message_header_size);
+                                 conn->consecutive_immediate_connection_close = 0;
+                                 if (!conn->process_next_message(message_length)) {
+                                    return;
+                                 }
+                              } else {
+                                 auto outstanding_message_bytes = total_message_bytes - bytes_in_buffer;
+                                 auto available_buffer_bytes = conn->pending_message_buffer.bytes_to_write();
+                                 if (outstanding_message_bytes > available_buffer_bytes) {
+                                    conn->pending_message_buffer.add_space( outstanding_message_bytes - available_buffer_bytes );
+                                 }
+
+                                 conn->outstanding_read_bytes = outstanding_message_bytes;
+                                 break;
+                              }
                            }
                         }
-                     }
-                     if( !close_connection ) conn->start_read_message();
-                  } else {
-                     if (ec.value() != boost::asio::error::eof) {
-                        fc_elog( logger, "Error reading message: ${m}", ( "m", ec.message() ) );
+                        if( !close_connection ) conn->start_read_message();
                      } else {
-                        fc_ilog( logger, "Peer closed connection" );
+                        if (ec.value() != boost::asio::error::eof) {
+                           fc_elog( logger, "Error reading message: ${m}", ( "m", ec.message() ) );
+                        } else {
+                           fc_ilog( logger, "Peer closed connection" );
+                        }
+                        close_connection = true;
                      }
+                  }
+                  catch(const std::exception &ex) {
+                     fc_elog( logger, "Exception in handling read data: ${s}", ("s",ex.what()) );
                      close_connection = true;
                   }
-               }
-               catch(const std::exception &ex) {
-                  fc_elog( logger, "Exception in handling read data: ${s}", ("s",ex.what()) );
-                  close_connection = true;
-               }
-               catch(const fc::exception &ex) {
-                  fc_elog( logger, "Exception in handling read data ${s}", ("s",ex.to_string()) );
-                  close_connection = true;
-               }
-               catch (...) {
-                  fc_elog( logger, "Undefined exception handling read data" );
-                  close_connection = true;
-               }
+                  catch(const fc::exception &ex) {
+                     fc_elog( logger, "Exception in handling read data ${s}", ("s",ex.to_string()) );
+                     close_connection = true;
+                  }
+                  catch (...) {
+                     fc_elog( logger, "Undefined exception handling read data" );
+                     close_connection = true;
+                  }
 
-               if( close_connection ) {
-                  fc_elog( logger, "Closing connection to: ${p}", ("p", conn->peer_name()) );
-                  conn->close();
-               }
-         }));
+                  if( close_connection ) {
+                     fc_elog( logger, "Closing connection to: ${p}", ("p", conn->peer_name()) );
+                     conn->close();
+                  }
+            }));
+         } else {
+            boost::asio::async_read( *socket_t,
+               pending_message_buffer.get_buffer_sequence_for_boost_async_read(), completion_handler,
+               boost::asio::bind_executor( strand,
+               [conn = shared_from_this(), socket=socket_t]( boost::system::error_code ec, std::size_t bytes_transferred ) {
+                  // may have closed connection and cleared pending_message_buffer
+                  if( !conn->socket_is_open() || socket != conn->socket_t ) return;
+
+                  bool close_connection = false;
+                  try {
+                     if( !ec ) {
+                        if (bytes_transferred > conn->pending_message_buffer.bytes_to_write()) {
+                           fc_elog( logger,"async_read_some callback: bytes_transfered = ${bt}, buffer.bytes_to_write = ${btw}",
+                                    ("bt",bytes_transferred)("btw",conn->pending_message_buffer.bytes_to_write()) );
+                        }
+                        EOS_ASSERT(bytes_transferred <= conn->pending_message_buffer.bytes_to_write(), plugin_exception, "");
+                        conn->pending_message_buffer.advance_write_ptr(bytes_transferred);
+                        while (conn->pending_message_buffer.bytes_to_read() > 0) {
+                           uint32_t bytes_in_buffer = conn->pending_message_buffer.bytes_to_read();
+
+                           if (bytes_in_buffer < message_header_size) {
+                              conn->outstanding_read_bytes = message_header_size - bytes_in_buffer;
+                              break;
+                           } else {
+                              uint32_t message_length;
+                              auto index = conn->pending_message_buffer.read_index();
+                              conn->pending_message_buffer.peek(&message_length, sizeof(message_length), index);
+                              if(message_length > def_send_buffer_size*2 || message_length == 0) {
+                                 fc_elog( logger,"incoming message length unexpected (${i})", ("i", message_length) );
+                                 close_connection = true;
+                                 break;
+                              }
+
+                              auto total_message_bytes = message_length + message_header_size;
+
+                              if (bytes_in_buffer >= total_message_bytes) {
+                                 conn->pending_message_buffer.advance_read_ptr(message_header_size);
+                                 conn->consecutive_immediate_connection_close = 0;
+                                 if (!conn->process_next_message(message_length)) {
+                                    return;
+                                 }
+                              } else {
+                                 auto outstanding_message_bytes = total_message_bytes - bytes_in_buffer;
+                                 auto available_buffer_bytes = conn->pending_message_buffer.bytes_to_write();
+                                 if (outstanding_message_bytes > available_buffer_bytes) {
+                                    conn->pending_message_buffer.add_space( outstanding_message_bytes - available_buffer_bytes );
+                                 }
+
+                                 conn->outstanding_read_bytes = outstanding_message_bytes;
+                                 break;
+                              }
+                           }
+                        }
+                        if( !close_connection ) conn->start_read_message();
+                     } else {
+                        if (ec.value() != boost::asio::error::eof) {
+                           fc_elog( logger, "Error reading message: ${m}", ( "m", ec.message() ) );
+                        } else {
+                           fc_ilog( logger, "Peer closed connection" );
+                        }
+                        close_connection = true;
+                     }
+                  }
+                  catch(const std::exception &ex) {
+                     fc_elog( logger, "Exception in handling read data: ${s}", ("s",ex.what()) );
+                     close_connection = true;
+                  }
+                  catch(const fc::exception &ex) {
+                     fc_elog( logger, "Exception in handling read data ${s}", ("s",ex.to_string()) );
+                     close_connection = true;
+                  }
+                  catch (...) {
+                     fc_elog( logger, "Undefined exception handling read data" );
+                     close_connection = true;
+                  }
+
+                  if( close_connection ) {
+                     fc_elog( logger, "Closing connection to: ${p}", ("p", conn->peer_name()) );
+                     conn->close();
+                  }
+            }));
+         }
       } catch (...) {
          fc_elog( logger, "Undefined exception in start_read_message, closing connection to: ${p}", ("p", peer_name()) );
          close();
@@ -2526,34 +2855,34 @@ namespace eosio {
          valid = false;
       }
 
-      try {
-         auto recovered = crypto::public_key(msg.sig_by_root, sha256::hash((char *) &(msg.public_key),sizeof(fc::ecc::public_key_data)), true);
-         if (recovered != my_impl->root_public_key ) {
-            wlog( "Handshake message validation: authentication rootkey invalid" );
-            wlog( "Handshake message recovered_key:  ${re} root_key: ${rt}", ("re", recovered)("rt", my_impl->root_public_key) );
-            //wlog( "hash ${h}, size ${s} ,pub ${p}",("h",(char *) &(msg.public_key))("s",sizeof(fc::ecc::public_key_data))("p",msg.public_key));
-            valid = false;
-         }
-      }
-      catch (fc::exception& /*e*/) {
-         wlog( "Handshake message validation: authentication rootkey exception" );
-         wlog( "Handshake message public_key: ${p} signature: ${s}", ("p", msg.public_key)("s", msg.sig_by_root) );
-         valid = false;
-      }
+      // try {
+      //    auto recovered = crypto::public_key(msg.sig_by_root, sha256::hash((char *) &(msg.public_key),sizeof(fc::ecc::public_key_data)), true);
+      //    if (recovered != my_impl->root_public_key ) {
+      //       wlog( "Handshake message validation: authentication rootkey invalid" );
+      //       wlog( "Handshake message recovered_key:  ${re} root_key: ${rt}", ("re", recovered)("rt", my_impl->root_public_key) );
+      //       //wlog( "hash ${h}, size ${s} ,pub ${p}",("h",(char *) &(msg.public_key))("s",sizeof(fc::ecc::public_key_data))("p",msg.public_key));
+      //       valid = false;
+      //    }
+      // }
+      // catch (fc::exception& /*e*/) {
+      //    wlog( "Handshake message validation: authentication rootkey exception" );
+      //    wlog( "Handshake message public_key: ${p} signature: ${s}", ("p", msg.public_key)("s", msg.sig_by_root) );
+      //    valid = false;
+      // }
 
-      try {
-         auto rec_pub_key = crypto::public_key(msg.sig_by_pri, sha256::hash(msg.time), true);
-         if (rec_pub_key != msg.public_key ) {
-            wlog( "Handshake message validation: authentication  pubkey invalid" );
-            wlog( "Handshake message rec_pub_key:  ${re} public_key: ${rt}", ("re", rec_pub_key)("rt", msg.public_key) );
-            valid = false;
-         }
-      }
-      catch (fc::exception& /*e*/) {
-         wlog( "Handshake message validation: authentication pubkey exception" );
-         wlog( "Handshake message public_key: ${p} signature: ${s}", ("p", msg.public_key)("s", msg.sig_by_pri) );
-         valid = false;
-      }
+      // try {
+      //    auto rec_pub_key = crypto::public_key(msg.sig_by_pri, sha256::hash(msg.time), true);
+      //    if (rec_pub_key != msg.public_key ) {
+      //       wlog( "Handshake message validation: authentication  pubkey invalid" );
+      //       wlog( "Handshake message rec_pub_key:  ${re} public_key: ${rt}", ("re", rec_pub_key)("rt", msg.public_key) );
+      //       valid = false;
+      //    }
+      // }
+      // catch (fc::exception& /*e*/) {
+      //    wlog( "Handshake message validation: authentication pubkey exception" );
+      //    wlog( "Handshake message public_key: ${p} signature: ${s}", ("p", msg.public_key)("s", msg.sig_by_pri) );
+      //    valid = false;
+      // }
 
       return valid;
    }
@@ -2563,7 +2892,8 @@ namespace eosio {
    }
    bool net_plugin_impl::is_in_expiry(chain::public_key_type pub_key){
       bool isin = false;
-      isin = eosio::chain_apis::read_only::is_in_crl_list(pub_key);
+      auto pk_hash = sha256::hash((char *) &(pub_key),sizeof(fc::ecc::public_key_data));
+      isin = eosio::chain_apis::read_only::is_in_crl_list(pk_hash);
       if(isin) wlog( "Peer authentication expired in CRL list: ${k}",("k",pub_key));
       return isin;
    }
@@ -2594,13 +2924,13 @@ namespace eosio {
 
       connecting = false;
 
-      if (my_impl->is_in_expiry(msg.public_key)) {
-         peer_elog( this, "Peer authentication expired.");
-         enqueue( go_away_message( auth_expired ));
-         wlog( "Peer authentication expired.(${k})",("k",msg.public_key));
-         return;
-      }
-      league_pub_key = msg.public_key;
+      // if (my_impl->is_in_expiry(msg.public_key)) {
+      //    peer_elog( this, "Peer authentication expired.");
+      //    enqueue( go_away_message( auth_expired ));
+      //    wlog( "Peer authentication expired.(${k})",("k",msg.public_key));
+      //    return;
+      // }
+      // league_pub_key = msg.public_key;
       ////////////////////////////////////////////
       if (msg.generation == 1) {
          if( msg.node_id == my_impl->node_id) {
@@ -3079,10 +3409,10 @@ namespace eosio {
                   } );
                }
 
-               if(my_impl->is_in_expiry(c->league_pub_key)){
-                  c->enqueue( go_away_message( auth_expired ));
-                  wlog( "The key was detected to be expired: ${k}", ("k",c->league_pub_key));
-               }
+               // if(my_impl->is_in_expiry(c->league_pub_key)){
+               //    c->enqueue( go_away_message( auth_expired ));
+               //    wlog( "The key was detected to be expired: ${k}", ("k",c->league_pub_key));
+               // }
                
                return true;
             } );
@@ -3318,9 +3648,9 @@ namespace eosio {
 #endif
       hello.agent = my_impl->user_agent_name;
 
-      hello.public_key = my_impl->league_public_key;
-      hello.sig_by_root= my_impl->signature_by_root;
-      hello.sig_by_pri = my_impl->league_private_key.sign(fc::sha256::hash(hello.time));
+      // hello.public_key = my_impl->league_public_key;
+      // hello.sig_by_root= my_impl->signature_by_root;
+      // hello.sig_by_pri = my_impl->league_private_key.sign(fc::sha256::hash(hello.time));
       //ilog( "hello root certificate: ${c}", ("c",hello.public_key));
       //ilog( "hello signature by root key: ${c}", ("c",hello.sig_by_root));
       //ilog( "hello self public key: ${c}", ("c",my_impl->league_public_key));
@@ -3379,6 +3709,19 @@ namespace eosio {
          ( "league-public-key",   bpo::value<string>(), "The public key that registration to CA.")
          ( "league-private-key",   bpo::value<string>(), "The private key that registration to CA.")
          ( "signature-by-root", bpo::value<string>(), "The signature generated by the CA.")
+
+         // for tls
+         ("nodes-certificate-chain-file", bpo::value<string>(),
+            "Filename with the certificate chain to present on https connections. PEM format. Required for https.")
+
+         ("nodes-private-key-file", bpo::value<string>(),
+            "Filename with https private key in PEM format. Required for https")
+
+         ("nodes-root-cert-file", bpo::value<string>(),
+            "Filename with https root ca cert in PEM format. Required for self-signed ca")
+
+         ("tls-enable", bpo::value<bool>()->default_value(false),
+            "Using tls certificate when peer connections")
 
          ;
    }
@@ -3464,33 +3807,33 @@ namespace eosio {
             }
          }
 
-         try {
-            if( options.count( "root-public-key" ) ) {
-               std::string tmp = options.at( "root-public-key" ).as<string>();
-               my->root_public_key = crypto::public_key(tmp);
-            }
-            if( options.count( "league-public-key" ) ) {
-               std::string tmp = options.at( "league-public-key" ).as<string>();
-               my->league_public_key = crypto::public_key(tmp);
-            }
-            if( options.count( "league-private-key" ) ) {
-               std::string tmp = options.at( "league-private-key" ).as<string>();
-               my->league_private_key = crypto::private_key(tmp);
-            }
-            if( options.count( "signature-by-root" ) ) {
-               std::string tmp = options.at( "signature-by-root" ).as<string>();
-               my->signature_by_root = crypto::signature(tmp);
-            }
+         // try {
+         //    if( options.count( "root-public-key" ) ) {
+         //       std::string tmp = options.at( "root-public-key" ).as<string>();
+         //       my->root_public_key = crypto::public_key(tmp);
+         //    }
+         //    if( options.count( "league-public-key" ) ) {
+         //       std::string tmp = options.at( "league-public-key" ).as<string>();
+         //       my->league_public_key = crypto::public_key(tmp);
+         //    }
+         //    if( options.count( "league-private-key" ) ) {
+         //       std::string tmp = options.at( "league-private-key" ).as<string>();
+         //       my->league_private_key = crypto::private_key(tmp);
+         //    }
+         //    if( options.count( "signature-by-root" ) ) {
+         //       std::string tmp = options.at( "signature-by-root" ).as<string>();
+         //       my->signature_by_root = crypto::signature(tmp);
+         //    }
 
-            //ilog( "my root certificate: ${c}", ("c",my->root_public_key));
-            //ilog( "my self public key: ${c}", ("c",my->league_public_key));
-            //ilog( "my self private key: ${c}", ("c",my->league_private_key));
-            //ilog( "my digital certificate : ${c}", ("c",my->signature_by_root));
+         //    //ilog( "my root certificate: ${c}", ("c",my->root_public_key));
+         //    //ilog( "my self public key: ${c}", ("c",my->league_public_key));
+         //    //ilog( "my self private key: ${c}", ("c",my->league_private_key));
+         //    //ilog( "my digital certificate : ${c}", ("c",my->signature_by_root));
 
-         }
-         catch ( fc::exception& ){
-            elog("Exception in parsing authorization information.");
-         }
+         // }
+         // catch ( fc::exception& ){
+         //    elog("Exception in parsing authorization information.");
+         // }
 
          my->chain_plug = app().find_plugin<chain_plugin>();
          EOS_ASSERT( my->chain_plug, chain::missing_chain_plugin_exception, ""  );
@@ -3507,6 +3850,48 @@ namespace eosio {
          }
          if( my->p2p_accept_transactions ) {
             my->chain_plug->enable_accept_transactions();
+         }
+
+         // for tls
+         my->tls_enable = options.at( "tls-enable" ).as<bool>();
+         if( my->tls_enable ) {
+            if( !options.count( "nodes-certificate-chain-file" ) ||
+                options.at( "nodes-certificate-chain-file" ).as<string>().empty()) {
+               elog( "nodes-certificate-chain-file is required for TLS" );
+               return;
+            }
+            if( !options.count( "nodes-private-key-file" ) ||
+                options.at( "nodes-private-key-file" ).as<string>().empty()) {
+               elog( "nodes-private-key-file is required for TLS" );
+               return;
+            }
+            if( !options.count( "nodes-root-cert-file" ) ||
+                options.at( "nodes-root-cert-file" ).as<string>().empty()) {
+               elog( "nodes-root-cert-file is required for TLS" );
+               return;
+            }
+
+            try {
+
+               my->tls_cert_chain = options.at( "nodes-certificate-chain-file" ).as<string>();
+               my->tls_priv_key   = options.at( "nodes-private-key-file" ).as<string>();
+               my->tls_root_cert  = options.at( "nodes-root-cert-file" ).as<string>();
+
+               ilog( "TLS root ${r}, priv ${p}, cert ${c}", ("r", my->tls_root_cert) ("p", my->tls_priv_key) ("c", my->tls_cert_chain) );
+
+               my->tlsctx.use_certificate_chain_file(my->tls_cert_chain);
+               my->tlsctx.use_private_key_file(my->tls_priv_key,boost::asio::ssl::context::pem);
+               my->tlsctx.load_verify_file(my->tls_root_cert);
+
+               my->tlsctx.set_verify_mode(boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert);
+
+            } catch ( const boost::system::system_error& ec ) {
+               elog( "failed to configure TLS (${m})",( "m", ec.what()));
+            }
+
+         }else {
+            my->tlsctx.set_verify_mode(boost::asio::ssl::verify_none);
+            wlog( "TLS IS NO NOT ENABLED.");
          }
 
       } FC_LOG_AND_RETHROW()

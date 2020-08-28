@@ -56,18 +56,29 @@ namespace eosio { namespace client { namespace http {
       resolved_url url;
       bool verify_cert;
       std::vector<string>& headers;
+      std::vector<string>& https_client_root_certs;
+      string https_cert_chain;
+      string https_key;
 
       connection_param( const http_context& context,
                         const resolved_url& url,
                         bool verify,
-                        std::vector<string>& h) : context(context),url(url), headers(h) {
+                        std::vector<string>& h,
+                        std::vector<string>& c,
+                        string cert,
+                        string key) : context(context),url(url), headers(h), 
+                                       https_client_root_certs(c), https_cert_chain(cert), https_key(key) {
          verify_cert = verify;
       }
 
       connection_param( const http_context& context,
                         const parsed_url& url,
                         bool verify,
-                        std::vector<string>& h) : context(context),url(resolve_url(context, url)), headers(h) {
+                        std::vector<string>& h,
+                        std::vector<string>& c,
+                        string cert,
+                        string key) : context(context),url(resolve_url(context, url)), headers(h), 
+                                       https_client_root_certs(c), https_cert_chain(cert), https_key(key) {
          verify_cert = verify;
       }
    };

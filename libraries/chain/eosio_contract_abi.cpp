@@ -64,6 +64,7 @@ abi_def eosio_contract_abi(const abi_def& eosio_system_abi)
 
    eos_abi.structs.emplace_back( struct_def {
       "transaction", "transaction_header", {
+         {"mec_acc", "account_name"},
          {"context_free_actions", "action[]"},
          {"actions", "action[]"},
          {"transaction_extensions", "extension[]"}
@@ -212,7 +213,16 @@ abi_def eosio_contract_abi(const abi_def& eosio_system_abi)
             {"header", "block_header"}
       }
    });
-
+#ifdef RESOURCE_UNLIMIT
+   eos_abi.structs.emplace_back( struct_def {
+         "onfee", "", {
+            {"actor",  "account_name"},
+            {"fee",    "asset"},
+            {"bpname", "account_name"},
+            {"mecname","account_name"},
+      }
+   });
+#endif // !RESOURCE_UNLIMIT
    // TODO add ricardian contracts
    eos_abi.actions.push_back( action_def{name("newaccount"), "newaccount",""} );
    eos_abi.actions.push_back( action_def{name("setcode"), "setcode",""} );
@@ -224,6 +234,9 @@ abi_def eosio_contract_abi(const abi_def& eosio_system_abi)
    eos_abi.actions.push_back( action_def{name("canceldelay"), "canceldelay",""} );
    eos_abi.actions.push_back( action_def{name("onerror"), "onerror",""} );
    eos_abi.actions.push_back( action_def{name("onblock"), "onblock",""} );
+#ifdef RESOURCE_UNLIMIT
+   eos_abi.actions.push_back( action_def{name("onfee"), "onfee",""} );
+#endif // !RESOURCE_UNLIMIT
 
    return eos_abi;
 }

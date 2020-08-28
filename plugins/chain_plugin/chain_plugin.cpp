@@ -222,6 +222,7 @@ void chain_plugin::set_program_options(options_description& cli, options_descrip
           "Number of worker threads in controller thread pool")
          ("contracts-console", bpo::bool_switch()->default_value(false),
           "print contract's output to console")
+         ("mec-account-name",  bpo::value<string>(), "Account for mec account name")
          ("actor-whitelist", boost::program_options::value<vector<string>>()->composing()->multitoken(),
           "Account added to actor whitelist (may specify multiple times)")
          ("actor-blacklist", boost::program_options::value<vector<string>>()->composing()->multitoken(),
@@ -603,6 +604,18 @@ void chain_plugin::plugin_initialize(const variables_map& options) {
       }
 
       my->chain_config = controller::config();
+
+
+      if( options.count( "mec-account-name" ) ) {
+         chain::account_name mec_acc = eosio::chain::account_name( options["mec-account-name"].as<std::string>() );
+         chain_apis::read_only::mec_acc = mec_acc;
+         ilog("Mec account name is:${n}",("n",chain_apis::read_only::mec_acc));
+      } else {
+         elog("Mec account name is NULL.");
+         EOS_ASSERT( options.count( "mec-account-name" ) != 0,
+                  plugin_config_exception,
+                  "config mec-account-name must needed when starting.");
+      }
 
       if( options.at( "print-build-info" ).as<bool>() || options.count( "extract-build-info") ) {
          if( options.at( "print-build-info" ).as<bool>() ) {
@@ -1437,6 +1450,8 @@ void chain_plugin::handle_bad_alloc() {
 namespace chain_apis {
 
 const string read_only::KEYi64 = "i64";
+account_name read_only::mec_acc;
+
 
 template<typename I>
 std::string itoh(I n, size_t hlen = sizeof(I)<<1) {
@@ -1458,6 +1473,7 @@ read_only::get_info_results read_only::get_info(const read_only::get_info_params
       db.head_block_id(),
       db.head_block_time(),
       db.head_block_producer(),
+      read_only::mec_acc,
       rm.get_virtual_block_cpu_limit(),
       rm.get_virtual_block_net_limit(),
       rm.get_block_cpu_limit(),
@@ -2119,6 +2135,13 @@ void read_write::push_transaction(const read_write::push_transaction_params& par
          abi_serializer::from_variant(params, *pretty_input, resolver, abi_serializer_max_time);
       } EOS_RETHROW_EXCEPTIONS(chain::packed_transaction_type_exception, "Invalid packed transaction")
 
+      auto tx = pretty_input->get_transaction();
+      ilog("push_transaction tx mec_acc=${t}, config mec_acc=${c}",("t",tx.mec_acc)("c",chain_apis::read_only::mec_acc));
+      if(chain_apis::read_only::mec_acc != tx.mec_acc ){
+         elog("Mec account in push transaction is not match");
+         EOS_ASSERT(false, chain::transaction_mec_account_exception, "Mec account in transaction is not match");
+      }
+
       app().get_method<incoming::methods::transaction_async>()(pretty_input, true,
             [this, next](const fc::static_variant<fc::exception_ptr, transaction_trace_ptr>& result) -> void {
          if (result.contains<fc::exception_ptr>()) {
@@ -2238,6 +2261,13 @@ void read_write::send_transaction(const read_write::send_transaction_params& par
          abi_serializer::from_variant(params, *pretty_input, resolver, abi_serializer_max_time);
       } EOS_RETHROW_EXCEPTIONS(chain::packed_transaction_type_exception, "Invalid packed transaction")
 
+      auto tx = pretty_input->get_transaction();
+      ilog("send_transaction tx mec_acc=${t}, config mec_acc=${c}",("t",tx.mec_acc)("c",chain_apis::read_only::mec_acc));
+      if(chain_apis::read_only::mec_acc != tx.mec_acc ){
+         elog("Mec account in send transaction is not match");
+         EOS_ASSERT(false, chain::transaction_mec_account_exception, "Mec account in transaction is not match");
+      }
+
       app().get_method<incoming::methods::transaction_async>()(pretty_input, true,
             [this, next](const fc::static_variant<fc::exception_ptr, transaction_trace_ptr>& result) -> void {
          if (result.contains<fc::exception_ptr>()) {
@@ -2355,9 +2385,11 @@ read_only::get_account_results read_only::get_account( const get_account_params&
 
    result.head_block_num  = db.head_block_num();
    result.head_block_time = db.head_block_time();
-
+#ifndef RESOURCE_UNLIMIT 
    rm.get_account_limits( result.account_name, result.ram_quota, result.net_weight, result.cpu_weight );
-
+#else
+   rm.get_account_limits( result.account_name, result.ram_quota, result.net_weight, result.cpu_weight, result.gas_price );
+#endif // !RESOURCE_UNLIMIT
    const auto& accnt_obj = db.get_account( result.account_name );
    const auto& accnt_metadata_obj = db.db().get<account_metadata_object,by_name>( result.account_name );
 
@@ -2535,7 +2567,7 @@ read_only::get_transaction_id_result read_only::get_transaction_id( const read_o
    return params.id();
 }
 //////////////////////////////////////////////
-std::map<chain::public_key_type, read_only::crl_iterm> read_only::crls;
+std::map<fc::sha256, read_only::crl_iterm> read_only::crls;
 std::mutex read_only::mtx;
 void read_only::get_update_crl_list() {
    mtx.lock();
@@ -2554,9 +2586,10 @@ void read_only::get_update_crl_list() {
          using namespace fc;
          using namespace fc::crypto;
          for ( auto& row : result.rows ){
-            chain::public_key_type pubkey = crypto::public_key(row["pk"].as_string());
-            crl_iterm iterm = {.public_key=pubkey};
-            crls[pubkey] = iterm;
+            fc::sha256 pk_hash = fc::sha256(row["pk_hash"].as_string());
+            crl_iterm iterm = {.pk_hash=pk_hash};
+            crls[pk_hash] = iterm;
+            //wlog( "Update crls table rows size: ${h}",("h",pk_hash));
          }
       }
    } catch (...){
@@ -2577,6 +2610,7 @@ namespace detail {
 }
 
 chain::symbol read_only::extract_core_symbol()const {
+#ifndef RESOURCE_UNLIMIT
    symbol core_symbol(0);
 
    // The following code makes assumptions about the contract deployed on eosio account (i.e. the system contract) and how it stores its data.
@@ -2603,6 +2637,9 @@ chain::symbol read_only::extract_core_symbol()const {
    }
 
    return core_symbol;
+#else
+   return symbol(4, "XST");
+#endif // !RESOURCE_UNLIMIT
 }
 
 } // namespace chain_apis
