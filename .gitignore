@@ -79,6 +79,7 @@ Testing/*
 build.tar.gz
 build/*
 build-debug/*
+Docker/*
 
 etc/eosio/node_*
 var/lib/node_*
