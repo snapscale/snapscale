@@ -16,7 +16,7 @@
 		- [latency test](#latency-test)
 	- [4. Certification Revocation list (CRL) Management](#4-certification-revocation-list-crl-management)
 		- [Deploy the CA contract](#deploy-the-ca-contract)
-		- [Add/delete a client's public key hash to the CRL contract](#adddelete-a-clients-public-key-hash-to-the-crl-contract)
+		- [Add/delete a client's public key hash (to the CRL contract)](#adddelete-a-clients-public-key-hash-to-the-crl-contract)
 
 ## Prerequisites
 
@@ -27,7 +27,7 @@
 - Use OpenSSL to generate `X509` Certificate
 - The public-key cryptography used in OpenSSL is `ECC - secp384r1`
 
-## 1. The use of root Certificate Authority (CA) to issue certificates for nodes and clients (below is for local test and it is not recommended for security reasons)
+## 1. The use of root Certificate Authority (CA) to issue certificates for nodes and clients (below is only for local test and it is not recommended for security reasons)
 
 ```sh
 # The method of CA certificate and key generation----directly generate CA key and its self-signed certificate (3650 days validity)
@@ -144,7 +144,7 @@ openssl req -newkey ec:<(openssl ecparam -name secp384r1) -nodes -keyout node-pr
 openssl x509 -req -days 3650 -in node-req.csr -CA ca-cert.pem -CAkey ca-prikey.pem -CAcreateserial -out node-cert.pem.tmp
 
 # Certificate aggregation（Note: pay attention to the certificate order）
-# Since it is a certificate issued by a secondary CA, the node needs to send the root CA, secondary CA and other certificates to the browser. Thus, the web (client) node receives an aggregated certificate.
+# Since it is a certificate issued by a secondary CA, the node needs to send the root CA, secondary CA and other certificates in order to the browser. Thus, the web (client) node receives an aggregated certificate.
 cat node-cert.pem.tmp ca-cert.pem | tee node-cert.pem
 
 # -------------------------------
