@@ -2,7 +2,7 @@
 
 - [Consortium Walkthrough](#consortium-walkthrough)
 	- [Prerequisites](#prerequisites)
-	- [Tips for scripts used below](#tips-for-scripts-used-below)
+	- [Tips for scripts](#tips-for-scripts)
 	- [1. The use of root Certificate Authority (CA) to issue certificates for nodes and clients (below is for local test and it is not recommended for security reasons)](#1-the-use-of-root-certificate-authority-ca-to-issue-certificates-for-nodes-and-clients-below-is-for-local-test-and-it-is-not-recommended-for-security-reasons)
 	- [[Recommended] 1. CA Hierarchy (suitable for real organization needs and more secure)](#recommended-1-ca-hierarchy-suitable-for-real-organization-needs-and-more-secure)
 		- [(1) Generate root CA and secondary CA certificates](#1-generate-root-ca-and-secondary-ca-certificates)
@@ -15,14 +15,14 @@
 		- [Node nodeos (P2P over TLS)](#node-nodeos-p2p-over-tls)
 		- [latency test](#latency-test)
 	- [4. Certification Revocation list (CRL) Management](#4-certification-revocation-list-crl-management)
-		- [Deploy CA contract](#deploy-ca-contract)
+		- [Deploy the CA contract](#deploy-the-ca-contract)
 		- [Add/delete a client's public key hash to the CRL contract](#adddelete-a-clients-public-key-hash-to-the-crl-contract)
 
 ## Prerequisites
 
 `OpenSSL 1.1.1`
 
-## Tips for scripts used below
+## Tips for scripts 
 
 - Use OpenSSL to generate `X509` Certificate
 - The public-key cryptography used in OpenSSL is `ECC - secp384r1`
@@ -41,7 +41,7 @@ openssl req -newkey ec:<(openssl ecparam -name secp384r1) -nodes -keyout node-pr
 
 openssl x509 -req -days 3650 -in node-req.csr -CA ca-cert.pem -CAkey ca-prikey.pem -CAcreateserial -out node-cert.pem
 
-# The method of client certificate and key generation ---- directly generate the client key and certificate to be signed
+# The method of client certificate and key generation---- directly generate the client key and certificate to be signed
 # CN could be the account name on the platform or consortium
 openssl req -newkey ec:<(openssl ecparam -name secp384r1) -nodes -keyout client-prikey.pem -out client-req.csr -subj "/C=CN/ST=shanghai/L=shanghai/O=XENIRO/OU=Snapscale/CN=CLIENT/emailAddress=ryan.wu@xeniro.io"
 
@@ -136,7 +136,7 @@ cat CA/CA.crt rootCA/rootCA.crt >CA/CA.pem
 Prepare script files: `~/Desktop/temp/ca/1.generate.sh`
 
 ```sh
-# The method of node certificate and key generation ----directly generate node key and certificate to be signed
+# The method of node certificate and key generation----directly generate node key and certificate to be signed
 # Note: CN must write the IP address of the node (local test 127.0.0.1) or domain name
 openssl req -newkey ec:<(openssl ecparam -name secp384r1) -nodes -keyout node-prikey.pem  -out node-req.csr -subj "/C=CN/ST=shanghai/L=shanghai/O=XENIRO/OU=Snapscale/CN=127.0.0.1/emailAddress=ryan.wu@xeniro.io"
 
@@ -149,7 +149,7 @@ cat node-cert.pem.tmp ca-cert.pem | tee node-cert.pem
 
 # -------------------------------
 
-# The method of client certificate and key generation ----directly generate client key and certificate to be signed
+# The method of client certificate and key generation----directly generate client key and certificate to be signed
 # CN could be the account name on the platform or consortium
 openssl req -newkey ec:<(openssl ecparam -name secp384r1) -nodes -keyout client-prikey.pem -out client-req.csr -subj "/C=CN/ST=shanghai/L=shanghai/O=XENIRO/OU=Snapscale/CN=CLIENT/emailAddress=ryan.wu@xeniro.io"
 
@@ -263,7 +263,7 @@ nodes-private-key-file=./config/cert/node-prikey.pem
 
 ## 4. Certification Revocation list (CRL) Management
 
-### Deploy CA contract
+### Deploy the CA contract
 
 ```sh
 cleos wallet import --private-key 5KF5jtD8QGKpypuT3HLDYjDiVTzrLvkYiEb2XXtxwabty87m9ib
@@ -275,7 +275,7 @@ cleos  transfer  eosio  xst.ca  "10000.0000 XST"  -p  eosio
 cleos set contract xst.ca ../../unittests/contracts/xst.ca -p xst.ca
 ```
 
-### Add/delete a client's public key hash to the CRL contract
+### Add/delete a client's public key hash (to the CRL contract)
 
 ```sh
 # Extract the client's public key file from the client certificate
